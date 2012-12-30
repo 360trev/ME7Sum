@@ -1,6 +1,6 @@
 This project is under BSD open source license. Its on the most unrestrictive freeware license possible. No warranty implied or given. 
 
-Its a tool written in C to management Bosch ME7 firmware dumps. I specifically wrote this tool to verify the dump of a Ferrari 360 Firmware.
+Its a tool written in C for management of Bosch ME7 firmware dumps. I specifically wrote this tool to verify the dump of a Ferrari 360 Firmware.
 
 Currently its been targeted to work with config files (simple ini variety) but could easily be adapted to use XML in future versions. Its currently only doing calculation, I don't write the updated checksums back to the file, again a future iteration could address this (easy to do).
 
