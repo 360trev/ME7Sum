@@ -193,9 +193,9 @@ int GetRomInfo(FILE *fh, struct section *osconfig)
  char offset_str[256];
  char length_str[256];
  unsigned long num_of;
- unsigned long ptr_type;
- unsigned long ptr_visible;
- unsigned long ptr_label;
+ char * ptr_type;
+ char * ptr_visible;
+ char * ptr_label;
  unsigned long ptr_offset;
  unsigned long ptr_length;
  int i;
@@ -214,11 +214,11 @@ int GetRomInfo(FILE *fh, struct section *osconfig)
 			sprintf(length_str, "dump_%d_len",    i);
 
 			// get config out of ini file...			
-			ptr_type    = (unsigned long)get_property(       osconfig, "dumps", type_str,    NULL);
-			ptr_visible = (unsigned long)get_property(       osconfig, "dumps", visible_str, NULL);
-			ptr_label   = (unsigned long)get_property(       osconfig, "dumps", label_str,   NULL);
-			ptr_offset  = (unsigned long)get_property_value( osconfig, "dumps", offset_str,  NULL);
-			ptr_length  = (unsigned long)get_property_value( osconfig, "dumps", length_str,  NULL);
+			ptr_type    = get_property(       osconfig, "dumps", type_str,    NULL);
+			ptr_visible = get_property(       osconfig, "dumps", visible_str, NULL);
+			ptr_label   = get_property(       osconfig, "dumps", label_str,   NULL);
+			ptr_offset  = get_property_value( osconfig, "dumps", offset_str,  NULL);
+			ptr_length  = get_property_value( osconfig, "dumps", length_str,  NULL);
 			
 			if(ptr_length == 0)
 			{
@@ -307,7 +307,7 @@ void ReadMainChecksum(FILE *fh,	unsigned long nStartaddr,	unsigned long nEndaddr
 	unsigned long nChksum;
 	unsigned long nInvChksum;
 
-		printf("Seeking to ROM Checksum Block Offset Table 0x%p [16 bytes table]\n\n",rom_checksum_offset);
+		printf("Seeking to ROM Checksum Block Offset Table 0x%lX [16 bytes table]\n\n",rom_checksum_offset);
 	
 		// read the ROM byte by byte to make this code endian independant
 		// C16x processors are big endian
@@ -321,12 +321,12 @@ void ReadMainChecksum(FILE *fh,	unsigned long nStartaddr,	unsigned long nEndaddr
 		fseek(fh, rom_checksum_offset+8, SEEK_SET);
 		nStartaddr   = get_file_long(fh);
 		nEndaddr     = get_file_long(fh);
-		printf(" 10000: Start: 0x%04lX  End: 0x%04lX - MAP REGION SKIPPED, NOT PART OF ROM CHECKSUM\n", 0x810000, 0x81ffff);
+		printf(" 10000: Start: 0x%04X  End: 0x%04X - MAP REGION SKIPPED, NOT PART OF ROM CHECKSUM\n", 0x810000, 0x81ffff);
 		nCalcChksum2= CalcChecksumBlk(fh, nStartaddr, nEndaddr);
 		printf("Start: 0x%04lX  End: 0x%04lX  Block #2 - nCalcChksum=0x%04lx\n", nStartaddr, nEndaddr,nCalcChksum2);
 	
 		nCalcChksum += nCalcChksum2;
-  	printf("\n\n#4: Read in stored MAIN ROM checksum block @ 0x%p [8 bytes]\n\n",rom_checksum_final);
+  	printf("\n\n#4: Read in stored MAIN ROM checksum block @ 0x%lX [8 bytes]\n\n",rom_checksum_final);
 
 		//Read in the stored checksum --- GOOD
 		fseek(fh, rom_checksum_final, SEEK_SET);
@@ -364,7 +364,7 @@ unsigned long CalcChecksumBlk(FILE *fh, unsigned long nStartAddr,	unsigned long 
 		return 0xffffffffu;
 	}
 
-	printf("%6x: ",nStartAddr);
+	printf("%6lx: ",nStartAddr);
 
 	//Set the file pointer to the start block
 	fseek(fh, nStartAddr, SEEK_SET);
