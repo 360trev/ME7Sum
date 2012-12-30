@@ -1,4 +1,4 @@
-This project is under BSD open source license. Its on the most unrestrictive freeware licese possible. No warranty implied or given. 
+This project is under BSD open source license. Its on the most unrestrictive freeware license possible. No warranty implied or given. 
 
 Its a tool written in C to management Bosch ME7 firmware dumps. I specifically wrote this tool to verify the dump of a Ferrari 360 Firmware.
 
