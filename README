@@ -1,0 +1,14 @@
+This project is under BSD open source license. Its on the most unrestrictive
+freeware licese possible. No warranty implied or given. 
+
+Its a tool written in C to management Bosch ME7 firmware dumps. Currently its been targeted to work
+with config files (simple ini variety) but could easily be adapted to use XML in future versions. Its
+currently only doing calculation, I don't write the updated checksums back to the file, again a future
+iteration could address this (easy to do).
+
+Enjoy!
+
+Dedicated to the members of NefMoto community.
+
+Feel free to contribute to the project!
+
