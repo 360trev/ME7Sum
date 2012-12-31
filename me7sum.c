@@ -43,6 +43,21 @@ uint32_t  rom_boot_Endaddr=0;
 uint32_t  rom_boot_Chksum=0;
 uint32_t  rom_boot_InvChksum=0;
 
+#include <errno.h>
+#define FSEEK(a,b,c) { \
+	if(fseek(a,b,c)) { \
+		fprintf(stderr,"Line %d: fseek %x: %s\n", __LINE__, b, strerror(errno)); \
+		exit(-1); \
+	} \
+};
+
+#define FREAD(a,b,c,d) { \
+	if(fread(a,b,c,d)<=0) { \
+		fprintf(stderr,"Line %d: fread: %s\n", __LINE__, feof(d)?"EOF":ferror(d)?"ERR":"???"); \
+		exit(-1); \
+	} \
+};
+
 //
 // List of configurable properties to read from config file into our programme... 
 // [this stops us having to hardcode values into the code itself]
@@ -71,7 +86,7 @@ PropertyListItem romProps[] = {
 uint32_t get_file_uint32_t(FILE *fh)
 {
 	uint8_t p[4];
-	fread(p, 4, 1, fh);
+	FREAD(p, 4, 1, fh);
 	return((p[3]<<24) + (p[2]<<16) + (p[1]<<8) + p[0]);
 }
 
@@ -131,15 +146,20 @@ int main(int argc, char **argv)
 					//
 					// Step #2 Multi point checksums
 					//
-					printf("\n#2: Reading Multipoint Checksum Block... [32x <16> = 512 bytes]\n");
-					for(iTemp=0; iTemp<32; iTemp++)
+					printf("\n#2: Reading Multipoint Checksum Block...\n");
+					for(iTemp=0; iTemp<64; iTemp++)
 					{
 						printf("%2d) ",iTemp+1);
 						result = ReadChecksumBlks(fh, rom_checksum_block_start+(rom_checksum_block_len*iTemp));
+						if (result == 1) {
+							result = 0;
+							break;	// end of blocks;
+						}
 						// if(result != 0) { break; }		// stop on first checksum that failed...
 					}
 					if(result == 0)			// if checksum failed abort or carry on
 					{
+							printf("[%d x <16> = %d bytes]\n", iTemp, iTemp*16);
 							//
 							// Step #3 Main ROM checksums
 							//
@@ -233,9 +253,9 @@ int GetRomInfo(FILE *fh, struct section *osconfig)
 				printf("%s = %p\n",length_str,  ptr_length);
 #endif	
 				// seek to correct file offset
-				fseek(fh, ptr_offset,  SEEK_SET);
+				FSEEK(fh, ptr_offset,  SEEK_SET);
 				// read the data from file into buffer
-				fread(str_data, ptr_length, 1, fh);
+				FREAD(str_data, ptr_length, 1, fh);
 				// null terminate buffer
 				str_data[ptr_length]  = 0x00;
 				if(! strncmp("true",(char *)ptr_visible,4))
@@ -262,17 +282,32 @@ uint32_t ReadChecksumBlks(FILE *fh, uint32_t nStartBlk)
 	uint32_t result;
 
 	printf("<%x> ",nStartBlk);
-	fseek(fh, nStartBlk, SEEK_SET);
+	fflush(stdout);
+	FSEEK(fh, nStartBlk, SEEK_SET);
 	nStartaddr    = get_file_uint32_t(fh);			// start address [4 bytes] read from, nStartBlk+0
 	nEndaddr      = get_file_uint32_t(fh);			// end address   [4 bytes] read from, nStartBlk+4
 	nChksum       = get_file_uint32_t(fh);			// checksum      [4 bytes] read from, nStartBlk+8
 	nInvChksum    = get_file_uint32_t(fh);			// inv checksum  [4 bytes] read from, nStartBlk+12
+	printf("Adr: 0x%04X-0x%04X ", nStartaddr, nEndaddr);
+	fflush(stdout);
+
+	if(nStartaddr==0xffffffff) {
+		printf(" END\n");
+		return 1;	// end of blks
+	}
+
+	if(nStartaddr>=nEndaddr || nChksum != ~nInvChksum) {
+		printf(" ** NOT OK **\n");
+		return -1;	// Error
+	}
+
 	// calc checksum
 	nCalcChksum = CalcChecksumBlk(fh, nStartaddr, nEndaddr);
 	// inverted checksum
   nCalcInvChksum = ~nCalcChksum;
- 
-	printf("Adr: 0x%04X-0x%04X  Sum: 0x%08X  ~0x%08X == Calc: 0x%08X ~0x%08X", nStartaddr, nEndaddr, nChksum, nInvChksum, nCalcChksum, nCalcInvChksum);
+
+  printf("Sum: 0x%08X  ~0x%08X == Calc: 0x%08X ~0x%08X", nChksum, nInvChksum, nCalcChksum, nCalcInvChksum);
+	fflush(stdout);
 	if(nChksum == nCalcChksum)
 	{
 		if(nStartaddr == 0x810000) {			// this start address contains the maps region
@@ -308,14 +343,14 @@ void ReadMainChecksum(FILE *fh,	uint32_t nStartaddr,	uint32_t nEndaddr)
 	
 		// read the ROM byte by byte to make this code endian independant
 		// C16x processors are big endian
-		fseek(fh, rom_checksum_offset+0, SEEK_SET);
+		FSEEK(fh, rom_checksum_offset+0, SEEK_SET);
 		nStartaddr = get_file_uint32_t(fh);
 		nEndaddr   = get_file_uint32_t(fh);
 		nCalcChksum = CalcChecksumBlk(fh, nStartaddr, nEndaddr);
 		printf("Start: 0x%04X  End: 0x%04X  Block #1 - nCalcChksum=0x%04x\n", nStartaddr, nEndaddr,nCalcChksum);
 	
 		// read in the checksum information, block by block
-		fseek(fh, rom_checksum_offset+8, SEEK_SET);
+		FSEEK(fh, rom_checksum_offset+8, SEEK_SET);
 		nStartaddr   = get_file_uint32_t(fh);
 		nEndaddr     = get_file_uint32_t(fh);
 		printf(" 10000: Start: 0x%04X  End: 0x%04X - MAP REGION SKIPPED, NOT PART OF ROM CHECKSUM\n", 0x810000, 0x81ffff);
@@ -326,7 +361,7 @@ void ReadMainChecksum(FILE *fh,	uint32_t nStartaddr,	uint32_t nEndaddr)
   	printf("\n\n#4: Read in stored MAIN ROM checksum block @ 0x%X [8 bytes]\n\n",rom_checksum_final);
 
 		//Read in the stored checksum --- GOOD
-		fseek(fh, rom_checksum_final, SEEK_SET);
+		FSEEK(fh, rom_checksum_final, SEEK_SET);
   	nChksum    = get_file_uint32_t(fh);
 //  	nInvChksum = get_file_uint32_t(fh);
 
@@ -362,17 +397,20 @@ uint32_t CalcChecksumBlk(FILE *fh, uint32_t nStartAddr,	uint32_t nEndAddr)
 	}
 
 	printf("%6x: ",nStartAddr);
+	fflush(stdout);
 
 	//Set the file pointer to the start block
-	fseek(fh, nStartAddr, SEEK_SET);
+	FSEEK(fh, nStartAddr, SEEK_SET);
 	nEndAddr += 1;//This is what the ME71 code does.
 
 	//Loop through the given addresses and work out the checksum
 	for(nIndex = nStartAddr; nIndex < nEndAddr; nIndex+=2)
 	{
-		fread(p, 2, 1, fh);
+		FREAD(p, 2, 1, fh);
 		nTemp = (p[1] << 8) + p[0];
 		nChecksum += nTemp;
 	}
 	return nChecksum;
 }
+
+// vim:ts=2:sw=2
