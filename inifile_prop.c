@@ -29,29 +29,31 @@ uint32_t get_property_value(struct section *sections, char *sectname, char *prop
 
 int process_properties_list(struct section *osconfig, PropertyListItem *ci)
 {
- int i=0,type,errCount=0;
- uint32_t *pAdr;
-		
-		while(1) {
-			type = ci[i].attr_type;
-			if(type == END_LIST) break;	// exit list...
-			if(type == GET_VALUE) {			// process list entry for GET_VALUE type
-				pAdr  = ci[i].attr_adr;
-				if(pAdr != 0) {
-					*pAdr = get_property_value(osconfig, ci[i].attr_path, ci[i].attr_name,	NULL);
-					printf("get_property_value( %s, %s)\n",ci[i].attr_path,ci[i].attr_name);
-					if(*pAdr == 0) { 
-						errCount++;
-						printf("Warning: Failed to get value for %s %s\n",ci[i].attr_path, ci[i].attr_name);
-					}
-				} else {
-					printf("Error: Invalid storage for property, check property list definition, item %d\n",i);
+	int i=0,type,errCount=0;
+	uint32_t *pAdr;
+
+	while(1) {
+		type = ci[i].attr_type;
+		if(type == END_LIST) break;	// exit list...
+		if(type == GET_VALUE) {			// process list entry for GET_VALUE type
+			pAdr  = ci[i].attr_adr;
+			if(pAdr != 0) {
+				*pAdr = get_property_value(osconfig, ci[i].attr_path, ci[i].attr_name,	NULL);
+				printf("get_property_value( %s, %s)\n",ci[i].attr_path,ci[i].attr_name);
+				if(*pAdr == 0) { 
+					errCount++;
+					printf("Warning: Failed to get value for %s %s\n",ci[i].attr_path, ci[i].attr_name);
 				}
 			} else {
-				printf("Unsupported property accessor type, check propertylist, item %d\n", i);
+				printf("Error: Invalid storage for property, check property list definition, item %d\n",i);
 			}
-			i++;
+		} else {
+			printf("Unsupported property accessor type, check propertylist, item %d\n", i);
 		}
-		printf("Processed %d elements with %d issues\n",i,errCount);
-		return errCount;
+		i++;
+	}
+	printf("Processed %d elements with %d issues\n",i,errCount);
+	return errCount;
 }
+
+// vim:ts=4:sw=4
