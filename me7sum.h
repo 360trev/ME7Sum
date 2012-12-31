@@ -30,12 +30,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdint.h>
 #include "os_types.h"
 #include "inifile_prop.h"
 
 int           GetRomInfo(             FILE *fh, struct section *osconfig);
-unsigned long CalcChecksumBlk(        FILE *fh, unsigned long nStartAddr,	unsigned long nEndAddr);
-unsigned long ReadChecksumBlks(       FILE *fh, unsigned long nStartBlk);
-void          ReadMainChecksum(       FILE *fh,	unsigned long nStartaddr,	unsigned long nEndaddr);
+uint32_t CalcChecksumBlk(        FILE *fh, uint32_t nStartAddr,	uint32_t nEndAddr);
+uint32_t ReadChecksumBlks(       FILE *fh, uint32_t nStartBlk);
+void          ReadMainChecksum(       FILE *fh,	uint32_t nStartaddr,	uint32_t nEndaddr);
 
 #endif

@@ -63,7 +63,7 @@ extern "C" {
 
 typedef struct PropertyListItem {
 	int attr_type;
-	unsigned long *attr_adr;
+	uint32_t *attr_adr;
 	char attr_path[ATTR_MAX_PATH];
 	char attr_name[ATTR_MAX_NAME];
 } PropertyListItem;	
@@ -79,7 +79,7 @@ void list_properties(int f, struct section *sect);
 struct section *read_properties(char *filename);
 int dump_section_properties(struct section *sections, char *sectname);
 
-unsigned long get_property_value(struct section *sections, char *sectname, char *propname, char *def);
+uint32_t get_property_value(struct section *sections, char *sectname, char *propname, char *def);
 int process_properties_list(struct section *osconfig, PropertyListItem *ci);
 
 #ifdef  __cplusplus

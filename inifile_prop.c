@@ -1,23 +1,24 @@
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdint.h>
 #include "inifile_prop.h"
 
-unsigned long get_property_value(struct section *sections, char *sectname, char *propname, char *def)
+uint32_t get_property_value(struct section *sections, char *sectname, char *propname, char *def)
 {
-	unsigned long val=0;
-	unsigned long defval=0;
+	uint32_t val=0;
+	uint32_t defval=0;
 	char *pStr=0;
 
 	// get default value string (if exists)
 	if(def != NULL) {
-		sscanf(def, "%lx",&defval);
+		defval=strtoul(def, NULL, 16);
 	}
 	// lookup property
 	pStr = get_property(sections, sectname, propname, NULL);
 	// success?
 	if(pStr != NULL) {
 		// scan property value
-		sscanf(pStr, "%lx",&val);
+		val=strtoul(pStr, NULL, 16);
 		free(pStr);
 	} else {
 		val = defval;
@@ -29,7 +30,7 @@ unsigned long get_property_value(struct section *sections, char *sectname, char 
 int process_properties_list(struct section *osconfig, PropertyListItem *ci)
 {
  int i=0,type,errCount=0;
- unsigned long *pAdr;
+ uint32_t *pAdr;
 		
 		while(1) {
 			type = ci[i].attr_type;

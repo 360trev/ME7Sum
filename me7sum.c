@@ -29,19 +29,19 @@
 #include "me7sum.h"
 
 // globals
-unsigned long  nStartaddr;
-unsigned long  nEndaddr;
+uint32_t  nStartaddr;
+uint32_t  nEndaddr;
 // main firmware checksum validation
-unsigned long  rom_start=0;
-unsigned long  rom_checksum_block_start=0;
-unsigned long  rom_checksum_block_len=0;
-unsigned long  rom_checksum_offset=0;
-unsigned long  rom_checksum_final=0;
+uint32_t  rom_start=0;
+uint32_t  rom_checksum_block_start=0;
+uint32_t  rom_checksum_block_len=0;
+uint32_t  rom_checksum_offset=0;
+uint32_t  rom_checksum_final=0;
 // boot sector validation
-unsigned long  rom_boot_Startaddr=0;
-unsigned long  rom_boot_Endaddr=0;
-unsigned long  rom_boot_Chksum=0;
-unsigned long  rom_boot_InvChksum=0;
+uint32_t  rom_boot_Startaddr=0;
+uint32_t  rom_boot_Endaddr=0;
+uint32_t  rom_boot_Chksum=0;
+uint32_t  rom_boot_InvChksum=0;
 
 //
 // List of configurable properties to read from config file into our programme... 
@@ -68,18 +68,11 @@ PropertyListItem romProps[] = {
  * - simply reads 4 bytes from file in endian transparent manner
  */
 
-int get_file_long(FILE *fh)
+uint32_t get_file_uint32_t(FILE *fh)
 {
-	unsigned int byte1;
-	unsigned int byte2;
-	unsigned int byte3;
-	unsigned int byte4;
-	unsigned char p[2];
-	fread(p, 1, 1, fh);	byte1 = (unsigned int)p[0];
-	fread(p, 1, 1, fh);	byte2 = (unsigned int)p[0];
-	fread(p, 1, 1, fh);	byte3 = (unsigned int)p[0];
-	fread(p, 1, 1, fh);	byte4 = (unsigned int)p[0];
-	return((byte4 * 0x1000000) + (byte3 * 0x10000) + (byte2 * 0x100) + byte1);
+	uint8_t p[4];
+	fread(p, 4, 1, fh);
+	return((p[3]<<24) + (p[2]<<16) + (p[1]<<8) + p[0]);
 }
 
 /*
@@ -91,7 +84,7 @@ int main(int argc, char **argv)
 {
 	int	iTemp;
 	int result;
-	unsigned long chksum;
+	uint32_t chksum;
 	FILE *fh;
 	struct section *osconfig;
 
@@ -128,7 +121,7 @@ int main(int argc, char **argv)
 					//
 					printf("\n#1: Reading Boot checksum...\n");
 					chksum = CalcChecksumBlk(fh, rom_boot_Startaddr, rom_boot_Endaddr);
-					printf("Start: 0x%04lX  End: 0x%04lX  Chksum: 0x%08lX  CalcChk: 0x%08lX", rom_boot_Startaddr,  rom_boot_Endaddr, rom_boot_Chksum, chksum);
+					printf("Start: 0x%04X  End: 0x%04X  Chksum: 0x%08X  CalcChk: 0x%08X", rom_boot_Startaddr,  rom_boot_Endaddr, rom_boot_Chksum, chksum);
 					if(chksum == rom_boot_Chksum) {
 							printf("       OK     \n");
 					}	else {
@@ -192,14 +185,14 @@ int GetRomInfo(FILE *fh, struct section *osconfig)
  char label_str[256];
  char offset_str[256];
  char length_str[256];
- unsigned long num_of;
+ uint32_t num_of;
 #ifdef DEBUG
  char * ptr_type;
 #endif
  char * ptr_visible;
  char * ptr_label;
- unsigned long ptr_offset;
- unsigned long ptr_length;
+ uint32_t ptr_offset;
+ uint32_t ptr_length;
  int i;
 
 		if(fh == 0) return(-1);
@@ -258,28 +251,28 @@ int GetRomInfo(FILE *fh, struct section *osconfig)
 
 
 // Reads the individual checksum blocks that start at nStartBlk
-unsigned long ReadChecksumBlks(FILE *fh, unsigned long nStartBlk)
+uint32_t ReadChecksumBlks(FILE *fh, uint32_t nStartBlk)
 {
 	// read the ROM byte by byte to make this code endian independant
 	// C16x processors are big endian
-	unsigned long nChksum;
-	unsigned long nInvChksum;
-	unsigned long nCalcChksum;
-	unsigned long nCalcInvChksum;
-	unsigned long result;
+	uint32_t nChksum;
+	uint32_t nInvChksum;
+	uint32_t nCalcChksum;
+	uint32_t nCalcInvChksum;
+	uint32_t result;
 
-	printf("<%lx> ",nStartBlk);
+	printf("<%x> ",nStartBlk);
 	fseek(fh, nStartBlk, SEEK_SET);
-	nStartaddr    = get_file_long(fh);			// start address [4 bytes] read from, nStartBlk+0
-	nEndaddr      = get_file_long(fh);			// end address   [4 bytes] read from, nStartBlk+4
-	nChksum       = get_file_long(fh);			// checksum      [4 bytes] read from, nStartBlk+8
-	nInvChksum    = get_file_long(fh);			// inv checksum  [4 bytes] read from, nStartBlk+12
+	nStartaddr    = get_file_uint32_t(fh);			// start address [4 bytes] read from, nStartBlk+0
+	nEndaddr      = get_file_uint32_t(fh);			// end address   [4 bytes] read from, nStartBlk+4
+	nChksum       = get_file_uint32_t(fh);			// checksum      [4 bytes] read from, nStartBlk+8
+	nInvChksum    = get_file_uint32_t(fh);			// inv checksum  [4 bytes] read from, nStartBlk+12
 	// calc checksum
 	nCalcChksum = CalcChecksumBlk(fh, nStartaddr, nEndaddr);
 	// inverted checksum
   nCalcInvChksum = ~nCalcChksum;
  
-	printf("Adr: 0x%04lX-0x%04lX  Sum: 0x%08lX  ~0x%08lX == Calc: 0x%08lX ~0x%08lX", nStartaddr, nEndaddr, nChksum, nInvChksum, nCalcChksum, nCalcInvChksum);
+	printf("Adr: 0x%04X-0x%04X  Sum: 0x%08X  ~0x%08X == Calc: 0x%08X ~0x%08X", nStartaddr, nEndaddr, nChksum, nInvChksum, nCalcChksum, nCalcInvChksum);
 	if(nChksum == nCalcChksum)
 	{
 		if(nStartaddr == 0x810000) {			// this start address contains the maps region
@@ -304,40 +297,40 @@ unsigned long ReadChecksumBlks(FILE *fh, unsigned long nStartBlk)
 //
 // Reads the main checksum for the whole ROM
 //
-void ReadMainChecksum(FILE *fh,	unsigned long nStartaddr,	unsigned long nEndaddr)
+void ReadMainChecksum(FILE *fh,	uint32_t nStartaddr,	uint32_t nEndaddr)
 {
-	unsigned long nCalcChksum;
-	unsigned long nCalcChksum2;
-	unsigned long nChksum;
-//	unsigned long nInvChksum;
+	uint32_t nCalcChksum;
+	uint32_t nCalcChksum2;
+	uint32_t nChksum;
+//	uint32_t nInvChksum;
 
-		printf("Seeking to ROM Checksum Block Offset Table 0x%lX [16 bytes table]\n\n",rom_checksum_offset);
+		printf("Seeking to ROM Checksum Block Offset Table 0x%X [16 bytes table]\n\n",rom_checksum_offset);
 	
 		// read the ROM byte by byte to make this code endian independant
 		// C16x processors are big endian
 		fseek(fh, rom_checksum_offset+0, SEEK_SET);
-		nStartaddr = get_file_long(fh);
-		nEndaddr   = get_file_long(fh);
+		nStartaddr = get_file_uint32_t(fh);
+		nEndaddr   = get_file_uint32_t(fh);
 		nCalcChksum = CalcChecksumBlk(fh, nStartaddr, nEndaddr);
-		printf("Start: 0x%04lX  End: 0x%04lX  Block #1 - nCalcChksum=0x%04lx\n", nStartaddr, nEndaddr,nCalcChksum);
+		printf("Start: 0x%04X  End: 0x%04X  Block #1 - nCalcChksum=0x%04x\n", nStartaddr, nEndaddr,nCalcChksum);
 	
 		// read in the checksum information, block by block
 		fseek(fh, rom_checksum_offset+8, SEEK_SET);
-		nStartaddr   = get_file_long(fh);
-		nEndaddr     = get_file_long(fh);
+		nStartaddr   = get_file_uint32_t(fh);
+		nEndaddr     = get_file_uint32_t(fh);
 		printf(" 10000: Start: 0x%04X  End: 0x%04X - MAP REGION SKIPPED, NOT PART OF ROM CHECKSUM\n", 0x810000, 0x81ffff);
 		nCalcChksum2= CalcChecksumBlk(fh, nStartaddr, nEndaddr);
-		printf("Start: 0x%04lX  End: 0x%04lX  Block #2 - nCalcChksum=0x%04lx\n", nStartaddr, nEndaddr,nCalcChksum2);
+		printf("Start: 0x%04X  End: 0x%04X  Block #2 - nCalcChksum=0x%04x\n", nStartaddr, nEndaddr,nCalcChksum2);
 	
 		nCalcChksum += nCalcChksum2;
-  	printf("\n\n#4: Read in stored MAIN ROM checksum block @ 0x%lX [8 bytes]\n\n",rom_checksum_final);
+  	printf("\n\n#4: Read in stored MAIN ROM checksum block @ 0x%X [8 bytes]\n\n",rom_checksum_final);
 
 		//Read in the stored checksum --- GOOD
 		fseek(fh, rom_checksum_final, SEEK_SET);
-  	nChksum    = get_file_long(fh);
-//  	nInvChksum = get_file_long(fh);
+  	nChksum    = get_file_uint32_t(fh);
+//  	nInvChksum = get_file_uint32_t(fh);
 
-		printf("Chksum : 0x%08lX ~Chksum : 0x%08lX  \nCalcChk: 0x%08lX ~CalcChk: 0x%08lX", nChksum, ~nChksum, nCalcChksum, ~nCalcChksum);
+		printf("Chksum : 0x%08X ~Chksum : 0x%08X  \nCalcChk: 0x%08X ~CalcChk: 0x%08X", nChksum, ~nChksum, nCalcChksum, ~nCalcChksum);
 		if(nChksum == nCalcChksum) {
 			printf("  Main ROM OK\n");
 		} else {
@@ -349,10 +342,10 @@ void ReadMainChecksum(FILE *fh,	unsigned long nStartaddr,	unsigned long nEndaddr
 //
 // Calculate the Bosch Motronic ME71 checksum for the given range
 //
-unsigned long CalcChecksumBlk(FILE *fh, unsigned long nStartAddr,	unsigned long nEndAddr)
+uint32_t CalcChecksumBlk(FILE *fh, uint32_t nStartAddr,	uint32_t nEndAddr)
 {
-	unsigned long	nChecksum = 0, nIndex, nTemp;
-	unsigned char p[2];
+	uint32_t	nChecksum = 0, nIndex, nTemp;
+	uint8_t p[2];
 
 	// We are only reading the ROM. Therefore the start address must be
 	// higher than ROMSTART. Ignore addresses lower than this and
@@ -368,7 +361,7 @@ unsigned long CalcChecksumBlk(FILE *fh, unsigned long nStartAddr,	unsigned long 
 		return 0xffffffffu;
 	}
 
-	printf("%6lx: ",nStartAddr);
+	printf("%6x: ",nStartAddr);
 
 	//Set the file pointer to the start block
 	fseek(fh, nStartAddr, SEEK_SET);
@@ -377,8 +370,8 @@ unsigned long CalcChecksumBlk(FILE *fh, unsigned long nStartAddr,	unsigned long 
 	//Loop through the given addresses and work out the checksum
 	for(nIndex = nStartAddr; nIndex < nEndAddr; nIndex+=2)
 	{
-		fread(p, 1, 1, fh);		nTemp = ((unsigned long)p[0]        );					// lo byte
-		fread(p, 1, 1, fh);		nTemp = ((unsigned long)p[0] * 0x100) + nTemp;	// hi byte
+		fread(p, 2, 1, fh);
+		nTemp = (p[1] << 8) + p[0];
 		nChecksum += nTemp;
 	}
 	return nChecksum;
