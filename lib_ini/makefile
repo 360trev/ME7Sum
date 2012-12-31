@@ -11,4 +11,4 @@ EXE     =lib_ini.dll
 SRC     =$(notdir $(foreach dir, ., $(wildcard $(dir)/*.c)))
 LIBS    =
 
-include makefile.common
+include ../makefile.common
