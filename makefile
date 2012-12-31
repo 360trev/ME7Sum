@@ -1,15 +1,8 @@
-# makefile
+include vars.mk
 
-DEBUG   =@
-RM      =rm -f
-CC      =gcc
-ECHO    =@echo
-CFLAGS  =-Wall -O3 -D_WIN32_ -Werror
-LDFLAGS =
-
-EXE     =me7sum.exe
-SRC     =$(notdir $(foreach dir, ., $(wildcard $(dir)/*.c)))
-LIBS    =lib_ini/lib_ini.dll
+EXE     =me7sum$(EXE_EXT)
+LIBS    =ini
 SUBDIRS =lib_ini
+LDFLAGS=-Llib_ini
 
 include makefile.common

@@ -101,7 +101,7 @@ int main(int argc, char **argv)
  		printf("Written by 360trev [FREEWARE]. \n\n");
 
 		if(argc < 3) {
-			printf("Usage: %s <firmware.bin> <config.ini>",argv[0]);
+			printf("Usage: %s <firmware.bin> <config.ini>\n",argv[0]);
 			return -1;
 		}
 
@@ -193,7 +193,9 @@ int GetRomInfo(FILE *fh, struct section *osconfig)
  char offset_str[256];
  char length_str[256];
  unsigned long num_of;
+#ifdef DEBUG
  char * ptr_type;
+#endif
  char * ptr_visible;
  char * ptr_label;
  unsigned long ptr_offset;
@@ -214,7 +216,9 @@ int GetRomInfo(FILE *fh, struct section *osconfig)
 			sprintf(length_str, "dump_%d_len",    i);
 
 			// get config out of ini file...			
+#ifdef DEBUG
 			ptr_type    = get_property(       osconfig, "dumps", type_str,    NULL);
+#endif
 			ptr_visible = get_property(       osconfig, "dumps", visible_str, NULL);
 			ptr_label   = get_property(       osconfig, "dumps", label_str,   NULL);
 			ptr_offset  = get_property_value( osconfig, "dumps", offset_str,  NULL);
@@ -228,7 +232,7 @@ int GetRomInfo(FILE *fh, struct section *osconfig)
 			{
 				// restrict maximum dump to 1kbyte [buffer size]
 				if(ptr_length > 1024) ptr_length = 1024;
-#if 0	// debug
+#ifdef DEBUG
 		 		printf("\n%s = %s\n",type_str,    ptr_type);
 				printf("%s = %s\n",visible_str, ptr_visible);
 				printf("%s = '%s'\n",label_str, ptr_label);
@@ -305,7 +309,7 @@ void ReadMainChecksum(FILE *fh,	unsigned long nStartaddr,	unsigned long nEndaddr
 	unsigned long nCalcChksum;
 	unsigned long nCalcChksum2;
 	unsigned long nChksum;
-	unsigned long nInvChksum;
+//	unsigned long nInvChksum;
 
 		printf("Seeking to ROM Checksum Block Offset Table 0x%lX [16 bytes table]\n\n",rom_checksum_offset);
 	
@@ -331,7 +335,7 @@ void ReadMainChecksum(FILE *fh,	unsigned long nStartaddr,	unsigned long nEndaddr
 		//Read in the stored checksum --- GOOD
 		fseek(fh, rom_checksum_final, SEEK_SET);
   	nChksum    = get_file_long(fh);
-  	nInvChksum = get_file_long(fh);
+//  	nInvChksum = get_file_long(fh);
 
 		printf("Chksum : 0x%08lX ~Chksum : 0x%08lX  \nCalcChk: 0x%08lX ~CalcChk: 0x%08lX", nChksum, ~nChksum, nCalcChksum, ~nCalcChksum);
 		if(nChksum == nCalcChksum) {

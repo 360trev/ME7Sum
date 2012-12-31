@@ -6,21 +6,26 @@ OBJ     =$(SRC:.c=.o) # replaces the .c from SRC with .o
 	$(DEBUG)$(CC) $(CFLAGS) -o $@ -c $<
 
 .PHONY : all     # .PHONY ignores files named all
-all: $(EXE)    # all is dependent on $(EXE) to be complete
+all: $(EXE)$ $(LIB)   # all is dependent on $(EXE) to be complete
 
 .PHONY : $(SUBDIRS)
 $(SUBDIRS):
 	$(MAKE) -C $@ $(TARGET)
 
+$(LIB): $(OBJ)
+	$(ECHO) Archiving $@ ...
+	$(DEBUG)$(AR) $@ $(OBJ)
+	$(ECHO) Done
+
 $(EXE): $(SUBDIRS) $(OBJ)   # $(EXE) is dependent on all of the files in $(OBJ) to exist
-	$(ECHO) Linking $(EXE) ...
-	$(DEBUG)$(CC) $(OBJ) $(LDFLAGS) $(LIBS) -o $@
+	$(ECHO) Linking $@ ...
+	$(DEBUG)$(CC) $(OBJ) $(LDFLAGS) $(addprefix -l,$(LIBS)) -o $@
 	$(ECHO) Done
 
 .PHONY : clean   # .PHONY ignores files named clean
-	
-clean:	TARGET := clean	
+
+clean:	TARGET := clean
 clean:	$(SUBDIRS)
 	$(ECHO) Deleting $(OBJ) $(EXE) ...
-	$(DEBUG)-$(RM) $(OBJ) $(EXE)    
+	$(DEBUG)-$(RM) $(OBJ) $(EXE)
 
