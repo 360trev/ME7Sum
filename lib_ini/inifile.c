@@ -132,7 +132,8 @@ void free_properties(struct section *sect)
     while (prop)
     {
       if (prop->name)  { /*printf(" freed property name=\"%s\"\n",prop->name); */  free(prop->name);  }
-      if (prop->value) { /*printf(" freed property value=\"%s\"\n",prop->value);*/ free(prop->value); }
+      // prop->value is allocated with the name
+      // if (prop->value) { /*printf(" freed property value=\"%s\"\n",prop->value);*/ free(prop->value); }
 
       nextprop = prop->next;
 /*	  printf("  freed prop %p\n",prop);*/
