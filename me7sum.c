@@ -41,7 +41,6 @@ uint32_t  rom_checksum_final=0;
 uint32_t  rom_boot_Startaddr=0;
 uint32_t  rom_boot_Endaddr=0;
 uint32_t  rom_boot_Chksum=0;
-uint32_t  rom_boot_InvChksum=0;
 
 #include <errno.h>
 #define FSEEK(a,b,c) { \
@@ -73,7 +72,6 @@ PropertyListItem romProps[] = {
 		{	GET_VALUE,  &rom_boot_Startaddr,       	"ignition", "rom_boot_Startaddr",	    	},
 		{	GET_VALUE,  &rom_boot_Endaddr,		      "ignition", "rom_boot_Endaddr",			    },
 		{	GET_VALUE,  &rom_boot_Chksum,			      "ignition", "rom_boot_Chksum",		    	},
-		{	GET_VALUE,  &rom_boot_InvChksum,        "ignition", "rom_boot_InvChksum",		    },
 		{ END_LIST,   0, "",""},
 };
 
