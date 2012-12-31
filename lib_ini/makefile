@@ -1,10 +1,10 @@
 # makefile
 
 DEBUG   =@
-RM      =del
+RM      =rm -f
 CC      =gcc
 ECHO    =@echo
-CFLAGS  =-Wall -O3 -D_WIN32_
+CFLAGS  =-Wall -O3 -D_WIN32_ -Werror
 LDFLAGS =-s -shared
 
 EXE     =lib_ini.dll

@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <unistd.h>
 #include "inifile.h"
 
 static char *trimstr(char *s, char *end)
@@ -307,7 +308,7 @@ struct section *read_properties(char *filename)
   int result;
   char *props;
   struct section *sect;
-  struct _stat buf;
+  struct stat buf;
 
   f = fopen(filename, "rb");
   if (f < 0) {
@@ -317,7 +318,7 @@ struct section *read_properties(char *filename)
 //	printf("success open() on %s\n",filename);
   }
 
-  result = _stat( filename, &buf );
+  result = stat( filename, &buf );
   if( result != 0 )
   {
 	// bad
@@ -332,7 +333,7 @@ struct section *read_properties(char *filename)
   if (!props)
   {
 	printf("failed to alloc().. ");
-    close(f);
+    fclose(f);
     return NULL;
   }
 
