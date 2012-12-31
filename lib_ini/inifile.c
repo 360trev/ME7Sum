@@ -310,7 +310,7 @@ struct section *read_properties(char *filename)
   struct stat buf;
 
   f = fopen(filename, "rb");
-  if (f < 0) {
+  if (!f) {
 	printf("failed to open %s\n",filename);
 	return NULL;
   } else {
@@ -386,3 +386,5 @@ int main(int argc, char **argv)
 	}
 }
 #endif
+
+// vim:ts=4:sw=2
