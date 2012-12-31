@@ -64,21 +64,21 @@ uint32_t  rom_boot_Chksum=0;
 };
 
 //
-// List of configurable properties to read from config file into our programme... 
+// List of configurable properties to read from config file into our programme...
 // [this stops us having to hardcode values into the code itself]
 //
 PropertyListItem romProps[] = {
-		// get rom region information
-		{	GET_VALUE,  &rom_start,									"ignition", "rom_firmware_start",				},
-		{	GET_VALUE,  &rom_checksum_block_start,	"ignition", "rom_checksum_block_start",	},
-		{	GET_VALUE,  &rom_checksum_block_len,		"ignition", "rom_checksum_block_len",		},
-		{	GET_VALUE,  &rom_checksum_offset,				"ignition", "rom_checksum_offset",			},
-		{	GET_VALUE,  &rom_checksum_final,				"ignition", "rom_checksum_final",				},
-		// get boot sector validation information
-		{	GET_VALUE,  &rom_boot_Startaddr,				"ignition", "rom_boot_Startaddr",				},
-		{	GET_VALUE,  &rom_boot_Endaddr,					"ignition", "rom_boot_Endaddr",					},
-		{	GET_VALUE,  &rom_boot_Chksum,						"ignition", "rom_boot_Chksum",					},
-		{ END_LIST,   0, "",""},
+	// get rom region information
+	{	GET_VALUE,  &rom_start,					"ignition", "rom_firmware_start",		},
+	{	GET_VALUE,  &rom_checksum_block_start,	"ignition", "rom_checksum_block_start",	},
+	{	GET_VALUE,  &rom_checksum_block_len,	"ignition", "rom_checksum_block_len",	},
+	{	GET_VALUE,  &rom_checksum_offset,		"ignition", "rom_checksum_offset",		},
+	{	GET_VALUE,  &rom_checksum_final,		"ignition", "rom_checksum_final",		},
+	// get boot sector validation information
+	{	GET_VALUE,  &rom_boot_Startaddr,		"ignition", "rom_boot_Startaddr",		},
+	{	GET_VALUE,  &rom_boot_Endaddr,			"ignition", "rom_boot_Endaddr",			},
+	{	GET_VALUE,  &rom_boot_Chksum,			"ignition", "rom_boot_Chksum",			},
+	{ END_LIST,   0, "",""},
 };
 
 static int GetRomInfo(FILE *fh, struct section *osconfig);
@@ -112,92 +112,92 @@ int main(int argc, char **argv)
 	FILE *fh;
 	struct section *osconfig;
 
-		// information about the tool
-		printf("ME7Tool [ Management tool for Bosch ME7.x firmwares]\n");
-		printf("Inspiration from Andy Whittaker's tools and information\n");
-		printf("Written by 360trev [FREEWARE]. \n\n");
+	// information about the tool
+	printf("ME7Tool [ Management tool for Bosch ME7.x firmwares]\n");
+	printf("Inspiration from Andy Whittaker's tools and information\n");
+	printf("Written by 360trev [FREEWARE]. \n\n");
 
-		if(argc < 3) {
-			printf("Usage: %s <firmware.bin> <config.ini>\n",argv[0]);
-			return -1;
-		}
+	if(argc < 3) {
+		printf("Usage: %s <firmware.bin> <config.ini>\n",argv[0]);
+		return -1;
+	}
 
-		printf("Attemping to open firmware config file %s\n",argv[2]);
-		// load properties file into memory
-		osconfig = read_properties(argv[2]);
-		if(osconfig != NULL)
+	printf("Attemping to open firmware config file %s\n",argv[2]);
+	// load properties file into memory
+	osconfig = read_properties(argv[2]);
+	if(osconfig != NULL)
+	{
+		// get rom region information from config file (see defined property list)
+		result = process_properties_list(osconfig, romProps);
+
+		// open the firmware file
+		printf("\nAttemping to open firmware file %s\n",argv[1]);
+		if((fh = fopen(argv[1],"rb")) != 0)
 		{
-			// get rom region information from config file (see defined property list)
-			result = process_properties_list(osconfig, romProps);
+			//
+			// Step #0 Show interesting ROM information
+			//
+			printf("\n#0: Showing ROM info (typically ECUID Table)\n\n");
+			result = GetRomInfo(fh, osconfig);
 
-			// open the firmware file
-			printf("\nAttemping to open firmware file %s\n",argv[1]);			
-			if((fh = fopen(argv[1],"rb")) != 0)
+			//
+			// Step #1 Verify Boot checksums
+			//
+			printf("\n#1: Reading Boot checksum...\n");
+			chksum = CalcChecksumBlk(fh, rom_boot_Startaddr, rom_boot_Endaddr);
+			printf("Start: 0x%04X  End: 0x%04X  Chksum: 0x%08X  CalcChk: 0x%08X", rom_boot_Startaddr,  rom_boot_Endaddr, rom_boot_Chksum, chksum);
+			if(chksum == rom_boot_Chksum) {
+				printf("       OK     \n");
+			}	else {
+				printf("  ** NOT OK **\n");
+			}
+
+			//
+			// Step #2 Multi point checksums
+			//
+			printf("\n#2: Reading Multipoint Checksum Block...\n");
+			for(iTemp=0; iTemp<64; iTemp++)
 			{
-					//
-					// Step #0 Show interesting ROM information
-					//
-					printf("\n#0: Showing ROM info (typically ECUID Table)\n\n");
-					result = GetRomInfo(fh, osconfig);
-
-					//
-					// Step #1 Verify Boot checksums
-					//
-					printf("\n#1: Reading Boot checksum...\n");
-					chksum = CalcChecksumBlk(fh, rom_boot_Startaddr, rom_boot_Endaddr);
-					printf("Start: 0x%04X  End: 0x%04X  Chksum: 0x%08X  CalcChk: 0x%08X", rom_boot_Startaddr,  rom_boot_Endaddr, rom_boot_Chksum, chksum);
-					if(chksum == rom_boot_Chksum) {
-							printf("       OK     \n");
-					}	else {
-							printf("  ** NOT OK **\n");
-					}
-
-					//
-					// Step #2 Multi point checksums
-					//
-					printf("\n#2: Reading Multipoint Checksum Block...\n");
-					for(iTemp=0; iTemp<64; iTemp++)
-					{
-						printf("%2d) ",iTemp+1);
-						result = ReadChecksumBlks(fh, rom_checksum_block_start+(rom_checksum_block_len*iTemp));
-						if (result == 1) {
-							result = 0;
-							break;	// end of blocks;
-						}
-						// if(result != 0) { break; }		// stop on first checksum that failed...
-					}
-					if(result == 0)			// if checksum failed abort or carry on
-					{
-							printf("[%d x <16> = %d bytes]\n", iTemp, iTemp*16);
-							//
-							// Step #3 Main ROM checksums
-							//
-							printf("\n#3: Reading main ROM checksum...\n");
-							ReadMainChecksum(fh, nStartaddr, nEndaddr);
-					}
-					else
-					{
-							printf("Stopped.\n");
-					}
-					// close the file
-					if(fh != 0) fclose(fh);
+				printf("%2d) ",iTemp+1);
+				result = ReadChecksumBlks(fh, rom_checksum_block_start+(rom_checksum_block_len*iTemp));
+				if (result == 1) {
+					result = 0;
+					break;	// end of blocks;
+				}
+				// if(result != 0) { break; }		// stop on first checksum that failed...
+			}
+			if(result == 0)			// if checksum failed abort or carry on
+			{
+				printf("[%d x <16> = %d bytes]\n", iTemp, iTemp*16);
+				//
+				// Step #3 Main ROM checksums
+				//
+				printf("\n#3: Reading main ROM checksum...\n");
+				ReadMainChecksum(fh, nStartaddr, nEndaddr);
 			}
 			else
 			{
-				printf("failed to open firmware file\n");
+				printf("Stopped.\n");
 			}
-
-			// free config
-			if(osconfig != 0) {
-				// freeing properties file..
-				free_properties(osconfig);
-			}
+			// close the file
+			if(fh != 0) fclose(fh);
 		}
 		else
 		{
-				printf("failed to open config file\n");
+			printf("failed to open firmware file\n");
 		}
-		return 0;
+
+		// free config
+		if(osconfig != 0) {
+			// freeing properties file..
+			free_properties(osconfig);
+		}
+	}
+	else
+	{
+		printf("failed to open config file\n");
+	}
+	return 0;
 }
 
 /*
@@ -208,75 +208,75 @@ int main(int argc, char **argv)
 
 static int GetRomInfo(FILE *fh, struct section *osconfig)
 {
- char str_data[1024];
- char type_str[256];
- char visible_str[256];
- char label_str[256];
- char offset_str[256];
- char length_str[256];
- uint32_t num_of;
+	char str_data[1024];
+	char type_str[256];
+	char visible_str[256];
+	char label_str[256];
+	char offset_str[256];
+	char length_str[256];
+	uint32_t num_of;
 #ifdef DEBUG
- char * ptr_type;
+	char * ptr_type;
 #endif
- char * ptr_visible;
- char * ptr_label;
- uint32_t ptr_offset;
- uint32_t ptr_length;
- int i;
+	char * ptr_visible;
+	char * ptr_label;
+	uint32_t ptr_offset;
+	uint32_t ptr_length;
+	int i;
 
-		if(fh == 0) return(-1);
-		//
-		// Step #0 this dynamically walks through the config file and shows all properties defined...
-		//
-		num_of = get_property_value(osconfig, "dumps", "dump_show", NULL);
-		for(i=1;i<=num_of;i++)
+	if(fh == 0) return(-1);
+	//
+	// Step #0 this dynamically walks through the config file and shows all properties defined...
+	//
+	num_of = get_property_value(osconfig, "dumps", "dump_show", NULL);
+	for(i=1;i<=num_of;i++)
+	{
+		sprintf(type_str,   "dump_%d_type",   i);
+		sprintf(visible_str,"dump_%d_visible",i);
+		sprintf(label_str,  "dump_%d_label",  i);
+		sprintf(offset_str, "dump_%d_offset", i);
+		sprintf(length_str, "dump_%d_len",    i);
+
+		// get config out of ini file...
+#ifdef DEBUG
+		ptr_type    = get_property(       osconfig, "dumps", type_str,    NULL);
+#endif
+		ptr_visible = get_property(       osconfig, "dumps", visible_str, NULL);
+		ptr_label   = get_property(       osconfig, "dumps", label_str,   NULL);
+		ptr_offset  = get_property_value( osconfig, "dumps", offset_str,  NULL);
+		ptr_length  = get_property_value( osconfig, "dumps", length_str,  NULL);
+
+		if(ptr_length == 0)
 		{
-			sprintf(type_str,   "dump_%d_type",   i);
-			sprintf(visible_str,"dump_%d_visible",i);
-			sprintf(label_str,  "dump_%d_label",  i);
-			sprintf(offset_str, "dump_%d_offset", i);
-			sprintf(length_str, "dump_%d_len",    i);
-
-			// get config out of ini file...			
+						// no length to source. skip it...
+		}
+		else
+		{
+			// restrict maximum dump to 1kbyte [buffer size]
+			if(ptr_length > 1024) ptr_length = 1024;
 #ifdef DEBUG
-			ptr_type    = get_property(       osconfig, "dumps", type_str,    NULL);
+			printf("\n%s = %s\n",type_str,    ptr_type);
+			printf("%s = %s\n",visible_str, ptr_visible);
+			printf("%s = '%s'\n",label_str, ptr_label);
+			printf("%s = %p\n",offset_str,  ptr_offset);
+			printf("%s = %p\n",length_str,  ptr_length);
 #endif
-			ptr_visible = get_property(       osconfig, "dumps", visible_str, NULL);
-			ptr_label   = get_property(       osconfig, "dumps", label_str,   NULL);
-			ptr_offset  = get_property_value( osconfig, "dumps", offset_str,  NULL);
-			ptr_length  = get_property_value( osconfig, "dumps", length_str,  NULL);
-
-			if(ptr_length == 0)
+			// seek to correct file offset
+			FSEEK(fh, ptr_offset,  SEEK_SET);
+			// read the data from file into buffer
+			FREAD(str_data, ptr_length, 1, fh);
+			// null terminate buffer
+			str_data[ptr_length]  = 0x00;
+			if(! strncmp("true",(char *)ptr_visible,4))
 			{
-							// no length to source. skip it...
-			}
-			else
-			{
-				// restrict maximum dump to 1kbyte [buffer size]
-				if(ptr_length > 1024) ptr_length = 1024;
-#ifdef DEBUG
-				printf("\n%s = %s\n",type_str,    ptr_type);
-				printf("%s = %s\n",visible_str, ptr_visible);
-				printf("%s = '%s'\n",label_str, ptr_label);
-				printf("%s = %p\n",offset_str,  ptr_offset);
-				printf("%s = %p\n",length_str,  ptr_length);
-#endif	
-				// seek to correct file offset
-				FSEEK(fh, ptr_offset,  SEEK_SET);
-				// read the data from file into buffer
-				FREAD(str_data, ptr_length, 1, fh);
-				// null terminate buffer
-				str_data[ptr_length]  = 0x00;
-				if(! strncmp("true",(char *)ptr_visible,4))
-				{
-					printf("%s = '%s'\n",ptr_label, str_data);
-				} else {
-					printf("%s = 'HIDDEN'\n",ptr_label);
-				}
+				printf("%s = '%s'\n",ptr_label, str_data);
+			} else {
+				printf("%s = 'HIDDEN'\n",ptr_label);
 			}
 		}
-		return 0;
-}	
+	}
+	return 0;
+}
 
 
 // Reads the individual checksum blocks that start at nStartBlk
@@ -322,7 +322,7 @@ static uint32_t ReadChecksumBlks(FILE *fh, uint32_t nStartBlk)
 		if(nStartaddr == 0x810000) {			// this start address contains the maps region
 			printf("  OK [MAPS]\n");
 		}
-		else 
+		else
 		{
 			if(nChksum == 0x1fffe000) {			// this value is checksum for all zero's... meaning empty block
 				printf("  OK [EMPTY]\n");
@@ -348,39 +348,39 @@ static void ReadMainChecksum(FILE *fh,	uint32_t nStartaddr,	uint32_t nEndaddr)
 	uint32_t nChksum;
 //	uint32_t nInvChksum;
 
-		printf("Seeking to ROM Checksum Block Offset Table 0x%X [16 bytes table]\n\n",rom_checksum_offset);
+	printf("Seeking to ROM Checksum Block Offset Table 0x%X [16 bytes table]\n\n",rom_checksum_offset);
 
-		// read the ROM byte by byte to make this code endian independant
-		// C16x processors are big endian
-		FSEEK(fh, rom_checksum_offset+0, SEEK_SET);
-		nStartaddr = get_file_uint32_t(fh);
-		nEndaddr   = get_file_uint32_t(fh);
-		nCalcChksum = CalcChecksumBlk(fh, nStartaddr, nEndaddr);
-		printf("Start: 0x%04X  End: 0x%04X  Block #1 - nCalcChksum=0x%04x\n", nStartaddr, nEndaddr,nCalcChksum);
+	// read the ROM byte by byte to make this code endian independant
+	// C16x processors are big endian
+	FSEEK(fh, rom_checksum_offset+0, SEEK_SET);
+	nStartaddr = get_file_uint32_t(fh);
+	nEndaddr   = get_file_uint32_t(fh);
+	nCalcChksum = CalcChecksumBlk(fh, nStartaddr, nEndaddr);
+	printf("Start: 0x%04X  End: 0x%04X  Block #1 - nCalcChksum=0x%04x\n", nStartaddr, nEndaddr,nCalcChksum);
 
-		printf(" 10000: Start: 0x%04X  End: 0x%04X - MAP REGION SKIPPED, NOT PART OF ROM CHECKSUM\n", 0x810000, 0x81ffff);
+	printf(" 10000: Start: 0x%04X  End: 0x%04X - MAP REGION SKIPPED, NOT PART OF ROM CHECKSUM\n", 0x810000, 0x81ffff);
 
-		// read in the checksum information, block by block
-		FSEEK(fh, rom_checksum_offset+8, SEEK_SET);
-		nStartaddr   = get_file_uint32_t(fh);
-		nEndaddr     = get_file_uint32_t(fh);
-		nCalcChksum2= CalcChecksumBlk(fh, nStartaddr, nEndaddr);
-		printf("Start: 0x%04X  End: 0x%04X  Block #2 - nCalcChksum=0x%04x\n", nStartaddr, nEndaddr,nCalcChksum2);
+	// read in the checksum information, block by block
+	FSEEK(fh, rom_checksum_offset+8, SEEK_SET);
+	nStartaddr   = get_file_uint32_t(fh);
+	nEndaddr     = get_file_uint32_t(fh);
+	nCalcChksum2= CalcChecksumBlk(fh, nStartaddr, nEndaddr);
+	printf("Start: 0x%04X  End: 0x%04X  Block #2 - nCalcChksum=0x%04x\n", nStartaddr, nEndaddr,nCalcChksum2);
 
-		nCalcChksum += nCalcChksum2;
-		printf("\n\n#4: Read in stored MAIN ROM checksum block @ 0x%X [8 bytes]\n\n",rom_checksum_final);
+	nCalcChksum += nCalcChksum2;
+	printf("\n\n#4: Read in stored MAIN ROM checksum block @ 0x%X [8 bytes]\n\n",rom_checksum_final);
 
-		//Read in the stored checksum --- GOOD
-		FSEEK(fh, rom_checksum_final, SEEK_SET);
-		nChksum    = get_file_uint32_t(fh);
+	//Read in the stored checksum --- GOOD
+	FSEEK(fh, rom_checksum_final, SEEK_SET);
+	nChksum    = get_file_uint32_t(fh);
 //	nInvChksum = get_file_uint32_t(fh);
 
-		printf("Chksum : 0x%08X ~Chksum : 0x%08X  \nCalcChk: 0x%08X ~CalcChk: 0x%08X", nChksum, ~nChksum, nCalcChksum, ~nCalcChksum);
-		if(nChksum == nCalcChksum) {
-			printf("  Main ROM OK\n");
-		} else {
-			printf(" ** NOT OK **\n");
-		}
+	printf("Chksum : 0x%08X ~Chksum : 0x%08X  \nCalcChk: 0x%08X ~CalcChk: 0x%08X", nChksum, ~nChksum, nCalcChksum, ~nCalcChksum);
+	if(nChksum == nCalcChksum) {
+		printf("  Main ROM OK\n");
+	} else {
+		printf(" ** NOT OK **\n");
+	}
 }
 
 //
@@ -422,4 +422,4 @@ static uint32_t CalcChecksumBlk(FILE *fh, uint32_t nStartAddr,	uint32_t nEndAddr
 	return nChecksum;
 }
 
-// vim:ts=2:sw=2
+// vim:ts=4:sw=4
