@@ -63,15 +63,15 @@ uint32_t  rom_boot_Chksum=0;
 //
 PropertyListItem romProps[] = {
 			// get rom region information
-		{	GET_VALUE,  &rom_start,                	"ignition", "rom_firmware_start",		    },
-		{	GET_VALUE,  &rom_checksum_block_start, 	"ignition", "rom_checksum_block_start",	},
-		{	GET_VALUE,  &rom_checksum_block_len,   	"ignition", "rom_checksum_block_len",  	},
-		{	GET_VALUE,  &rom_checksum_offset,      	"ignition", "rom_checksum_offset",	  	},
-		{	GET_VALUE,  &rom_checksum_final,       	"ignition", "rom_checksum_final",		    },
+		{	GET_VALUE,  &rom_start,									"ignition", "rom_firmware_start",				},
+		{	GET_VALUE,  &rom_checksum_block_start,	"ignition", "rom_checksum_block_start",	},
+		{	GET_VALUE,  &rom_checksum_block_len,		"ignition", "rom_checksum_block_len",		},
+		{	GET_VALUE,  &rom_checksum_offset,				"ignition", "rom_checksum_offset",			},
+		{	GET_VALUE,  &rom_checksum_final,				"ignition", "rom_checksum_final",				},
 			// get boot sector validation information
-		{	GET_VALUE,  &rom_boot_Startaddr,       	"ignition", "rom_boot_Startaddr",	    	},
-		{	GET_VALUE,  &rom_boot_Endaddr,		      "ignition", "rom_boot_Endaddr",			    },
-		{	GET_VALUE,  &rom_boot_Chksum,			      "ignition", "rom_boot_Chksum",		    	},
+		{	GET_VALUE,  &rom_boot_Startaddr,				"ignition", "rom_boot_Startaddr",				},
+		{	GET_VALUE,  &rom_boot_Endaddr,					"ignition", "rom_boot_Endaddr",					},
+		{	GET_VALUE,  &rom_boot_Chksum,						"ignition", "rom_boot_Chksum",					},
 		{ END_LIST,   0, "",""},
 };
 
@@ -102,9 +102,9 @@ int main(int argc, char **argv)
 	struct section *osconfig;
 
 		// information about the tool
- 		printf("ME7Tool [ Management tool for Bosch ME7.x firmwares]\n");
- 		printf("Inspiration from Andy Whittaker's tools and information\n");
- 		printf("Written by 360trev [FREEWARE]. \n\n");
+		printf("ME7Tool [ Management tool for Bosch ME7.x firmwares]\n");
+		printf("Inspiration from Andy Whittaker's tools and information\n");
+		printf("Written by 360trev [FREEWARE]. \n\n");
 
 		if(argc < 3) {
 			printf("Usage: %s <firmware.bin> <config.ini>\n",argv[0]);
@@ -117,7 +117,7 @@ int main(int argc, char **argv)
 		if(osconfig != NULL)
 		{
 			// get rom region information from config file (see defined property list)
-		  result = process_properties_list(osconfig, romProps);
+			result = process_properties_list(osconfig, romProps);
 
 			// open the firmware file
 			printf("\nAttemping to open firmware file %s\n",argv[1]);			
@@ -164,7 +164,7 @@ int main(int argc, char **argv)
 							printf("\n#3: Reading main ROM checksum...\n");
 							ReadMainChecksum(fh, nStartaddr, nEndaddr);
 					}
-		 			else
+					else
 					{
 							printf("Stopped.\n");
 					}
@@ -244,7 +244,7 @@ int GetRomInfo(FILE *fh, struct section *osconfig)
 				// restrict maximum dump to 1kbyte [buffer size]
 				if(ptr_length > 1024) ptr_length = 1024;
 #ifdef DEBUG
-		 		printf("\n%s = %s\n",type_str,    ptr_type);
+				printf("\n%s = %s\n",type_str,    ptr_type);
 				printf("%s = %s\n",visible_str, ptr_visible);
 				printf("%s = '%s'\n",label_str, ptr_label);
 				printf("%s = %p\n",offset_str,  ptr_offset);
@@ -302,9 +302,9 @@ uint32_t ReadChecksumBlks(FILE *fh, uint32_t nStartBlk)
 	// calc checksum
 	nCalcChksum = CalcChecksumBlk(fh, nStartaddr, nEndaddr);
 	// inverted checksum
-  nCalcInvChksum = ~nCalcChksum;
+	nCalcInvChksum = ~nCalcChksum;
 
-  printf("Sum: 0x%08X  ~0x%08X == Calc: 0x%08X ~0x%08X", nChksum, nInvChksum, nCalcChksum, nCalcInvChksum);
+	printf("Sum: 0x%08X  ~0x%08X == Calc: 0x%08X ~0x%08X", nChksum, nInvChksum, nCalcChksum, nCalcInvChksum);
 	fflush(stdout);
 	if(nChksum == nCalcChksum)
 	{
@@ -356,12 +356,12 @@ void ReadMainChecksum(FILE *fh,	uint32_t nStartaddr,	uint32_t nEndaddr)
 		printf("Start: 0x%04X  End: 0x%04X  Block #2 - nCalcChksum=0x%04x\n", nStartaddr, nEndaddr,nCalcChksum2);
 	
 		nCalcChksum += nCalcChksum2;
-  	printf("\n\n#4: Read in stored MAIN ROM checksum block @ 0x%X [8 bytes]\n\n",rom_checksum_final);
+		printf("\n\n#4: Read in stored MAIN ROM checksum block @ 0x%X [8 bytes]\n\n",rom_checksum_final);
 
 		//Read in the stored checksum --- GOOD
 		FSEEK(fh, rom_checksum_final, SEEK_SET);
-  	nChksum    = get_file_uint32_t(fh);
-//  	nInvChksum = get_file_uint32_t(fh);
+		nChksum    = get_file_uint32_t(fh);
+//		nInvChksum = get_file_uint32_t(fh);
 
 		printf("Chksum : 0x%08X ~Chksum : 0x%08X  \nCalcChk: 0x%08X ~CalcChk: 0x%08X", nChksum, ~nChksum, nCalcChksum, ~nCalcChksum);
 		if(nChksum == nCalcChksum) {
@@ -385,7 +385,7 @@ uint32_t CalcChecksumBlk(FILE *fh, uint32_t nStartAddr,	uint32_t nEndAddr)
 	// remove the offset for addresses we're interested in.
 	if (nStartAddr >= rom_start)	//ROMSTART)
 	{
-		nStartAddr -= rom_start;	  //ROMSTART;
+		nStartAddr -= rom_start;		//ROMSTART;
 		nEndAddr   -= rom_start;		//ROMSTART;
 	}
 	else
