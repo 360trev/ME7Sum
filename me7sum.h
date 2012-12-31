@@ -31,7 +31,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
-#include "os_types.h"
 #include "inifile_prop.h"
 
 int           GetRomInfo(             FILE *fh, struct section *osconfig);
