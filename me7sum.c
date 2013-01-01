@@ -129,7 +129,8 @@ int main(int argc, char **argv)
 	printf("Inspiration from Andy Whittaker's tools and information\n");
 	printf("Written by 360trev [FREEWARE]. \n\n");
 
-	if(argc < 3) {
+	if(argc < 3)
+	{
 		printf("Usage: %s <firmware.bin> <config.ini>\n",argv[0]);
 		return -1;
 	}
@@ -163,13 +164,17 @@ int main(int argc, char **argv)
 	//
 	// Step #1 Verify Boot checksums (if requested)
 	//
-	if(BootConfig.addr.start && BootConfig.addr.end) {
+	if(BootConfig.addr.start && BootConfig.addr.end)
+	{
 		printf("\nReading Boot checksum...\n");
 		chksum = CalcChecksumBlk(fh, &BootConfig.addr);
 		printf("Start: 0x%04X  End: 0x%04X  Chksum: 0x%08X  CalcChk: 0x%08X", BootConfig.addr.start,  BootConfig.addr.end, BootConfig.checksum, chksum);
-		if(chksum == BootConfig.checksum) {
+		if(chksum == BootConfig.checksum)
+		{
 			printf("       OK     \n");
-		}	else {
+		}
+		else
+		{
 			printf("  ** NOT OK **\n");
 		}
 	}
@@ -195,13 +200,10 @@ int main(int argc, char **argv)
 
 out:
 	// close the file
-	if(fh != 0) fclose(fh);
+	if(fh != 0) { fclose(fh); }
 
 	// free config
-	if(osconfig != 0) {
-		// freeing properties file..
-		free_properties(osconfig);
-	}
+	if(osconfig != 0) { free_properties(osconfig); }
 
 	return 0;
 }
@@ -276,7 +278,9 @@ static int GetRomInfo(FILE *fh, struct section *osconfig)
 			if(! strncmp("true",(char *)ptr_visible,4))
 			{
 				printf("%s = '%s'\n",ptr_label, str_data);
-			} else {
+			}
+			else
+			{
 				printf("%s = 'HIDDEN'\n",ptr_label);
 			}
 		}
@@ -316,7 +320,8 @@ static uint32_t ReadChecksumBlks(FILE *fh, uint32_t nStartBlk)
 
 	printf("Sum: 0x%08X  ~0x%08X", desc.csum.v, desc.csum.iv);
 
-	if(desc.csum.v != ~desc.csum.iv) {
+	if(desc.csum.v != ~desc.csum.iv)
+	{
 		printf(" ** NOT OK **\n");
 		return -1;	// Uncorrectable Error
 	}
@@ -371,9 +376,12 @@ static void ReadMainChecksum(FILE *fh)
 	FREAD(&csum, sizeof(csum), 1, fh);
 	// todo: endian swap on bigendian host
 	printf("Chksum : 0x%08X ~Chksum : 0x%08X  \nCalcChk: 0x%08X ~CalcChk: 0x%08X", csum.v, csum.iv, nCalcChksum, ~nCalcChksum);
-	if(csum.v == ~csum.iv && csum.v == nCalcChksum) {
+	if(csum.v == ~csum.iv && csum.v == nCalcChksum)
+	{
 		printf("  Main ROM OK\n");
-	} else {
+	}
+	else
+	{
 		printf(" ** NOT OK **\n");
 	}
 }
