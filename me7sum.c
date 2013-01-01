@@ -359,12 +359,22 @@ static void ReadMainChecksum(FILE *fh)
 	FSEEK(fh, Config.main_checksum_offset+0, SEEK_SET);
 	FREAD(&desc, sizeof(desc), 1, fh);
 	// todo: endian swap on bigendian host
+
+	// block 1
 	nCalcChksum = CalcChecksumBlk(fh, desc.r);
 	printf("Start: 0x%04X  End: 0x%04X  Block #1 - nCalcChksum=0x%04x\n", desc.r[0].start, desc.r[0].end,nCalcChksum);
 
-	printf(" 10000: Start: 0x%04X  End: 0x%04X - MAP REGION SKIPPED, NOT PART OF ROM CHECKSUM\n", 0x810000, 0x81ffff);
+	if (desc.r[0].end + 1 != desc.r[1].start)
+	{
+		uint32_t skip=desc.r[0].end+1;
+		if (skip >= Config.base_address)
+		{
+			skip-=Config.base_address;
+		}
+		printf("%6x: Start: 0x%04X  End: 0x%04X - MAP REGION SKIPPED, NOT PART OF MAIN CHECKSUM\n", skip, desc.r[0].end+1, desc.r[1].start-1);
+	}
 
-	// read in the checksum information, block by block
+	// block 2
 	nCalcChksum2= CalcChecksumBlk(fh, desc.r+1);
 	printf("Start: 0x%04X  End: 0x%04X  Block #2 - nCalcChksum=0x%04x\n", desc.r[1].start, desc.r[1].end,nCalcChksum2);
 
