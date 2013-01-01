@@ -34,9 +34,6 @@
 
 #include "inifile_prop.h"
 
-// globals
-uint32_t  nStartaddr;
-uint32_t  nEndaddr;
 // main firmware checksum validation
 uint32_t  rom_start=0;
 uint32_t  rom_checksum_block_start=0;
@@ -84,7 +81,7 @@ PropertyListItem romProps[] = {
 static int GetRomInfo(FILE *fh, struct section *osconfig);
 static uint32_t CalcChecksumBlk(FILE *fh, uint32_t nStartAddr,	uint32_t nEndAddr);
 static uint32_t ReadChecksumBlks(FILE *fh, uint32_t nStartBlk);
-static void ReadMainChecksum(FILE *fh,	uint32_t nStartaddr,	uint32_t nEndaddr);
+static void ReadMainChecksum(FILE *fh);
 
 /*
  * Helper function
@@ -173,7 +170,7 @@ int main(int argc, char **argv)
 				// Step #3 Main ROM checksums
 				//
 				printf("\n#3: Reading main ROM checksum...\n");
-				ReadMainChecksum(fh, nStartaddr, nEndaddr);
+				ReadMainChecksum(fh);
 			}
 			else
 			{
@@ -289,6 +286,8 @@ static uint32_t ReadChecksumBlks(FILE *fh, uint32_t nStartBlk)
 	uint32_t nCalcChksum;
 	uint32_t nCalcInvChksum;
 	uint32_t result;
+	uint32_t nStartaddr;
+	uint32_t nEndaddr;
 
 	printf("<%x> ",nStartBlk);
 	fflush(stdout);
@@ -341,12 +340,14 @@ static uint32_t ReadChecksumBlks(FILE *fh, uint32_t nStartBlk)
 //
 // Reads the main checksum for the whole ROM
 //
-static void ReadMainChecksum(FILE *fh,	uint32_t nStartaddr,	uint32_t nEndaddr)
+static void ReadMainChecksum(FILE *fh)
 {
 	uint32_t nCalcChksum;
 	uint32_t nCalcChksum2;
 	uint32_t nChksum;
 //	uint32_t nInvChksum;
+	uint32_t  nStartaddr;
+	uint32_t  nEndaddr;
 
 	printf("Seeking to ROM Checksum Block Offset Table 0x%X [16 bytes table]\n\n",rom_checksum_offset);
 
