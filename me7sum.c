@@ -31,21 +31,11 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
+#include <errno.h>
 
 #include "inifile_prop.h"
 
-// main firmware checksum validation
-uint32_t  rom_start=0;
-uint32_t  rom_checksum_block_start=0;
-uint32_t  rom_checksum_block_len=0;
-uint32_t  rom_checksum_offset=0;
-uint32_t  rom_checksum_final=0;
-// boot sector validation
-uint32_t  rom_boot_Startaddr=0;
-uint32_t  rom_boot_Endaddr=0;
-uint32_t  rom_boot_Chksum=0;
-
-#include <errno.h>
+// defines
 #define FSEEK(a,b,c) { \
 	if(fseek(a,b,c)) { \
 		fprintf(stderr,"Line %d: fseek %x: %s\n", __LINE__, b, strerror(errno)); \
@@ -60,41 +50,66 @@ uint32_t  rom_boot_Chksum=0;
 	} \
 };
 
+
+// structures
+struct Range {
+	uint32_t	start;
+	uint32_t	end;
+};
+
+struct ChecksumPair {
+	uint32_t	v;	// value
+	uint32_t	iv;	// inverse value
+};
+
+// descriptors
+struct MultipointDescriptor {
+	struct Range			r;
+	struct ChecksumPair	csum;
+};
+
+struct MainDescriptor {
+	struct Range r[2];
+};
+
+
+// main firmware checksum validation
+struct rom_config {
+	uint32_t  base_address;				/* rom base address */
+	uint32_t  multipoint_block_start;	/* start of multipoint block descriptors */
+	uint32_t  multipoint_block_len;		/* size of descriptors */
+	uint32_t  main_checksum_offset;		/* two start/end pairs, one at offset, other at offset+8 */
+	uint32_t  main_checksum_final;		/* two 4 byte checksum (one inv) for two blocks conctatenated above) */
+} Config;
+
+// boot sector validation (optional, generally already in multipoint blocks above) */
+struct rom_boot_config {
+	struct Range	addr;
+	uint32_t		checksum;
+} BootConfig;
+
 //
 // List of configurable properties to read from config file into our programme...
 // [this stops us having to hardcode values into the code itself]
 //
 PropertyListItem romProps[] = {
 	// get rom region information
-	{	GET_VALUE,  &rom_start,					"ignition", "rom_firmware_start",		},
-	{	GET_VALUE,  &rom_checksum_block_start,	"ignition", "rom_checksum_block_start",	},
-	{	GET_VALUE,  &rom_checksum_block_len,	"ignition", "rom_checksum_block_len",	},
-	{	GET_VALUE,  &rom_checksum_offset,		"ignition", "rom_checksum_offset",		},
-	{	GET_VALUE,  &rom_checksum_final,		"ignition", "rom_checksum_final",		},
+	{	GET_VALUE,  &Config.base_address,			"ignition", "rom_firmware_start",		},
+	{	GET_VALUE,  &Config.multipoint_block_start,	"ignition", "rom_checksum_block_start",	},
+	{	GET_VALUE,  &Config.multipoint_block_len,	"ignition", "rom_checksum_block_len",	},
+	{	GET_VALUE,  &Config.main_checksum_offset,	"ignition", "rom_checksum_offset",		},
+	{	GET_VALUE,  &Config.main_checksum_final,	"ignition", "rom_checksum_final",		},
 	// get boot sector validation information
-	{	GET_VALUE,  &rom_boot_Startaddr,		"ignition", "rom_boot_Startaddr",		},
-	{	GET_VALUE,  &rom_boot_Endaddr,			"ignition", "rom_boot_Endaddr",			},
-	{	GET_VALUE,  &rom_boot_Chksum,			"ignition", "rom_boot_Chksum",			},
+	{	GET_VALUE,  &BootConfig.addr.start,			"ignition", "rom_boot_Startaddr",		},
+	{	GET_VALUE,  &BootConfig.addr.end,			"ignition", "rom_boot_Endaddr",			},
+	{	GET_VALUE,  &BootConfig.checksum,			"ignition", "rom_boot_Chksum",			},
 	{ END_LIST,   0, "",""},
 };
 
 static int GetRomInfo(FILE *fh, struct section *osconfig);
-static uint32_t CalcChecksumBlk(FILE *fh, uint32_t nStartAddr,	uint32_t nEndAddr);
+static uint32_t CalcChecksumBlk(FILE *fh, const struct Range *);
 static uint32_t ReadChecksumBlks(FILE *fh, uint32_t nStartBlk);
 static void ReadMainChecksum(FILE *fh);
-
-/*
- * Helper function
- *
- * - simply reads 4 bytes from file in endian transparent manner
- */
-
-static uint32_t get_file_uint32_t(FILE *fh)
-{
-	uint8_t p[4];
-	FREAD(p, 4, 1, fh);
-	return((p[3]<<24) + (p[2]<<16) + (p[1]<<8) + p[0]);
-}
 
 /*
  * main()
@@ -134,29 +149,31 @@ int main(int argc, char **argv)
 			//
 			// Step #0 Show interesting ROM information
 			//
-			printf("\n#0: Showing ROM info (typically ECUID Table)\n\n");
+			printf("\nShowing ROM info (typically ECUID Table)\n\n");
 			result = GetRomInfo(fh, osconfig);
 
 			//
-			// Step #1 Verify Boot checksums
+			// Step #1 Verify Boot checksums (if requested)
 			//
-			printf("\n#1: Reading Boot checksum...\n");
-			chksum = CalcChecksumBlk(fh, rom_boot_Startaddr, rom_boot_Endaddr);
-			printf("Start: 0x%04X  End: 0x%04X  Chksum: 0x%08X  CalcChk: 0x%08X", rom_boot_Startaddr,  rom_boot_Endaddr, rom_boot_Chksum, chksum);
-			if(chksum == rom_boot_Chksum) {
-				printf("       OK     \n");
-			}	else {
-				printf("  ** NOT OK **\n");
+			if(BootConfig.addr.start && BootConfig.addr.end) {
+				printf("\nReading Boot checksum...\n");
+				chksum = CalcChecksumBlk(fh, &BootConfig.addr);
+				printf("Start: 0x%04X  End: 0x%04X  Chksum: 0x%08X  CalcChk: 0x%08X", BootConfig.addr.start,  BootConfig.addr.end, BootConfig.checksum, chksum);
+				if(chksum == BootConfig.checksum) {
+					printf("       OK     \n");
+				}	else {
+					printf("  ** NOT OK **\n");
+				}
 			}
 
 			//
 			// Step #2 Multi point checksums
 			//
-			printf("\n#2: Reading Multipoint Checksum Block...\n");
+			printf("\nReading Multipoint Checksum Block...\n");
 			for(iTemp=0; iTemp<64; iTemp++)
 			{
 				printf("%2d) ",iTemp+1);
-				result = ReadChecksumBlks(fh, rom_checksum_block_start+(rom_checksum_block_len*iTemp));
+				result = ReadChecksumBlks(fh, Config.multipoint_block_start+(Config.multipoint_block_len*iTemp));
 				if (result == 1) {
 					result = 0;
 					break;	// end of blocks;
@@ -169,7 +186,7 @@ int main(int argc, char **argv)
 				//
 				// Step #3 Main ROM checksums
 				//
-				printf("\n#3: Reading main ROM checksum...\n");
+				printf("\nReading main ROM checksum...\n");
 				ReadMainChecksum(fh);
 			}
 			else
@@ -245,7 +262,7 @@ static int GetRomInfo(FILE *fh, struct section *osconfig)
 
 		if(ptr_length == 0)
 		{
-						// no length to source. skip it...
+			// no length to source. skip it...
 		}
 		else
 		{
@@ -280,50 +297,45 @@ static int GetRomInfo(FILE *fh, struct section *osconfig)
 static uint32_t ReadChecksumBlks(FILE *fh, uint32_t nStartBlk)
 {
 	// read the ROM byte by byte to make this code endian independant
-	// C16x processors are big endian
-	uint32_t nChksum;
-	uint32_t nInvChksum;
+	// C16x processors are little endian
+	struct MultipointDescriptor desc;
 	uint32_t nCalcChksum;
 	uint32_t nCalcInvChksum;
 	uint32_t result;
-	uint32_t nStartaddr;
-	uint32_t nEndaddr;
 
 	printf("<%x> ",nStartBlk);
 	fflush(stdout);
 	FSEEK(fh, nStartBlk, SEEK_SET);
-	nStartaddr    = get_file_uint32_t(fh);			// start address [4 bytes] read from, nStartBlk+0
-	nEndaddr      = get_file_uint32_t(fh);			// end address   [4 bytes] read from, nStartBlk+4
-	nChksum       = get_file_uint32_t(fh);			// checksum      [4 bytes] read from, nStartBlk+8
-	nInvChksum    = get_file_uint32_t(fh);			// inv checksum  [4 bytes] read from, nStartBlk+12
-	printf("Adr: 0x%04X-0x%04X ", nStartaddr, nEndaddr);
+	FREAD(&desc, sizeof(desc), 1, fh);
+	// todo: endian swap on bigendian host
+	printf("Adr: 0x%04X-0x%04X ", desc.r.start, desc.r.end);
 	fflush(stdout);
 
-	if(nStartaddr==0xffffffff) {
+	if(desc.r.start==0xffffffff) {
 		printf(" END\n");
 		return 1;	// end of blks
 	}
 
-	if(nStartaddr>=nEndaddr || nChksum != ~nInvChksum) {
+	if(desc.r.start>=desc.r.end || desc.csum.v != ~desc.csum.iv) {
 		printf(" ** NOT OK **\n");
 		return -1;	// Error
 	}
 
 	// calc checksum
-	nCalcChksum = CalcChecksumBlk(fh, nStartaddr, nEndaddr);
+	nCalcChksum = CalcChecksumBlk(fh, &desc.r);
 	// inverted checksum
 	nCalcInvChksum = ~nCalcChksum;
 
-	printf("Sum: 0x%08X  ~0x%08X == Calc: 0x%08X ~0x%08X", nChksum, nInvChksum, nCalcChksum, nCalcInvChksum);
+	printf("Sum: 0x%08X  ~0x%08X == Calc: 0x%08X ~0x%08X", desc.csum.v, desc.csum.iv, nCalcChksum, nCalcInvChksum);
 	fflush(stdout);
-	if(nChksum == nCalcChksum)
+	if(desc.csum.v == nCalcChksum)
 	{
-		if(nStartaddr == 0x810000) {			// this start address contains the maps region
+		if(desc.r.start == 0x810000) {			// this start address contains the maps region
 			printf("  OK [MAPS]\n");
 		}
 		else
 		{
-			if(nChksum == 0x1fffe000) {			// this value is checksum for all zero's... meaning empty block
+			if(desc.csum.v == 0x1fffe000) {			// this value is checksum for all zero's... meaning empty block
 				printf("  OK [EMPTY]\n");
 			} else {
 				printf("  OK [OTHER]\n");
@@ -342,42 +354,36 @@ static uint32_t ReadChecksumBlks(FILE *fh, uint32_t nStartBlk)
 //
 static void ReadMainChecksum(FILE *fh)
 {
+	struct MainDescriptor desc;
+	struct ChecksumPair csum;
 	uint32_t nCalcChksum;
 	uint32_t nCalcChksum2;
-	uint32_t nChksum;
-//	uint32_t nInvChksum;
-	uint32_t  nStartaddr;
-	uint32_t  nEndaddr;
 
-	printf("Seeking to ROM Checksum Block Offset Table 0x%X [16 bytes table]\n\n",rom_checksum_offset);
+	printf("Seeking to ROM Checksum Block Offset Table 0x%X [16 bytes table]\n\n",Config.main_checksum_offset);
 
 	// read the ROM byte by byte to make this code endian independant
-	// C16x processors are big endian
-	FSEEK(fh, rom_checksum_offset+0, SEEK_SET);
-	nStartaddr = get_file_uint32_t(fh);
-	nEndaddr   = get_file_uint32_t(fh);
-	nCalcChksum = CalcChecksumBlk(fh, nStartaddr, nEndaddr);
-	printf("Start: 0x%04X  End: 0x%04X  Block #1 - nCalcChksum=0x%04x\n", nStartaddr, nEndaddr,nCalcChksum);
+	// C16x processors are little endian
+	FSEEK(fh, Config.main_checksum_offset+0, SEEK_SET);
+	FREAD(&desc, sizeof(desc), 1, fh);
+	// todo: endian swap on bigendian host
+	nCalcChksum = CalcChecksumBlk(fh, desc.r);
+	printf("Start: 0x%04X  End: 0x%04X  Block #1 - nCalcChksum=0x%04x\n", desc.r[0].start, desc.r[0].end,nCalcChksum);
 
 	printf(" 10000: Start: 0x%04X  End: 0x%04X - MAP REGION SKIPPED, NOT PART OF ROM CHECKSUM\n", 0x810000, 0x81ffff);
 
 	// read in the checksum information, block by block
-	FSEEK(fh, rom_checksum_offset+8, SEEK_SET);
-	nStartaddr   = get_file_uint32_t(fh);
-	nEndaddr     = get_file_uint32_t(fh);
-	nCalcChksum2= CalcChecksumBlk(fh, nStartaddr, nEndaddr);
-	printf("Start: 0x%04X  End: 0x%04X  Block #2 - nCalcChksum=0x%04x\n", nStartaddr, nEndaddr,nCalcChksum2);
+	nCalcChksum2= CalcChecksumBlk(fh, desc.r+1);
+	printf("Start: 0x%04X  End: 0x%04X  Block #2 - nCalcChksum=0x%04x\n", desc.r[1].start, desc.r[1].end,nCalcChksum2);
 
 	nCalcChksum += nCalcChksum2;
-	printf("\n\n#4: Read in stored MAIN ROM checksum block @ 0x%X [8 bytes]\n\n",rom_checksum_final);
+	printf("\n\nRead in stored MAIN ROM checksum block @ 0x%X [8 bytes]\n\n",Config.main_checksum_final);
 
 	//Read in the stored checksum --- GOOD
-	FSEEK(fh, rom_checksum_final, SEEK_SET);
-	nChksum    = get_file_uint32_t(fh);
-//	nInvChksum = get_file_uint32_t(fh);
-
-	printf("Chksum : 0x%08X ~Chksum : 0x%08X  \nCalcChk: 0x%08X ~CalcChk: 0x%08X", nChksum, ~nChksum, nCalcChksum, ~nCalcChksum);
-	if(nChksum == nCalcChksum) {
+	FSEEK(fh, Config.main_checksum_final, SEEK_SET);
+	FREAD(&csum, sizeof(csum), 1, fh);
+	// todo: endian swap on bigendian host
+	printf("Chksum : 0x%08X ~Chksum : 0x%08X  \nCalcChk: 0x%08X ~CalcChk: 0x%08X", csum.v, csum.iv, nCalcChksum, ~nCalcChksum);
+	if(csum.v == ~csum.iv && csum.v == nCalcChksum) {
 		printf("  Main ROM OK\n");
 	} else {
 		printf(" ** NOT OK **\n");
@@ -387,18 +393,20 @@ static void ReadMainChecksum(FILE *fh)
 //
 // Calculate the Bosch Motronic ME71 checksum for the given range
 //
-static uint32_t CalcChecksumBlk(FILE *fh, uint32_t nStartAddr,	uint32_t nEndAddr)
+static uint32_t CalcChecksumBlk(FILE *fh, const struct Range *r)
 {
+	uint32_t	nStartAddr=r->start;
+	uint32_t	nEndAddr=r->end;
 	uint32_t	nChecksum = 0, nIndex, nTemp;
 	uint8_t p[2];
 
 	// We are only reading the ROM. Therefore the start address must be
 	// higher than ROMSTART. Ignore addresses lower than this and
 	// remove the offset for addresses we're interested in.
-	if (nStartAddr >= rom_start)	//ROMSTART)
+	if (nStartAddr >= Config.base_address)	//ROMSTART)
 	{
-		nStartAddr -= rom_start;		//ROMSTART;
-		nEndAddr   -= rom_start;		//ROMSTART;
+		nStartAddr -= Config.base_address;		//ROMSTART;
+		nEndAddr   -= Config.base_address;		//ROMSTART;
 	}
 	else
 	{
@@ -411,10 +419,9 @@ static uint32_t CalcChecksumBlk(FILE *fh, uint32_t nStartAddr,	uint32_t nEndAddr
 
 	//Set the file pointer to the start block
 	FSEEK(fh, nStartAddr, SEEK_SET);
-	nEndAddr += 1;//This is what the ME71 code does.
 
 	//Loop through the given addresses and work out the checksum
-	for(nIndex = nStartAddr; nIndex < nEndAddr; nIndex+=2)
+	for(nIndex = nStartAddr; nIndex <= nEndAddr; nIndex+=2)
 	{
 		FREAD(p, 2, 1, fh);
 		nTemp = (p[1] << 8) + p[0];
