@@ -137,80 +137,72 @@ int main(int argc, char **argv)
 	printf("Attemping to open firmware config file %s\n",argv[2]);
 	// load properties file into memory
 	osconfig = read_properties(argv[2]);
-	if(osconfig != NULL)
-	{
-		// get rom region information from config file (see defined property list)
-		result = process_properties_list(osconfig, romProps);
-
-		// open the firmware file
-		printf("\nAttemping to open firmware file %s\n",argv[1]);
-		if((fh = fopen(argv[1],"rb")) != 0)
-		{
-			//
-			// Step #0 Show interesting ROM information
-			//
-			printf("\nShowing ROM info (typically ECUID Table)\n\n");
-			result = GetRomInfo(fh, osconfig);
-
-			//
-			// Step #1 Verify Boot checksums (if requested)
-			//
-			if(BootConfig.addr.start && BootConfig.addr.end) {
-				printf("\nReading Boot checksum...\n");
-				chksum = CalcChecksumBlk(fh, &BootConfig.addr);
-				printf("Start: 0x%04X  End: 0x%04X  Chksum: 0x%08X  CalcChk: 0x%08X", BootConfig.addr.start,  BootConfig.addr.end, BootConfig.checksum, chksum);
-				if(chksum == BootConfig.checksum) {
-					printf("       OK     \n");
-				}	else {
-					printf("  ** NOT OK **\n");
-				}
-			}
-
-			//
-			// Step #2 Multi point checksums
-			//
-			printf("\nReading Multipoint Checksum Block...\n");
-			for(iTemp=0; iTemp<64; iTemp++)
-			{
-				printf("%2d) ",iTemp+1);
-				result = ReadChecksumBlks(fh, Config.multipoint_block_start+(Config.multipoint_block_len*iTemp));
-				if (result == 1) {
-					result = 0;
-					break;	// end of blocks;
-				}
-				// if(result != 0) { break; }		// stop on first checksum that failed...
-			}
-			if(result == 0)			// if checksum failed abort or carry on
-			{
-				printf("[%d x <16> = %d bytes]\n", iTemp, iTemp*16);
-				//
-				// Step #3 Main ROM checksums
-				//
-				printf("\nReading main ROM checksum...\n");
-				ReadMainChecksum(fh);
-			}
-			else
-			{
-				printf("Stopped.\n");
-			}
-			// close the file
-			if(fh != 0) fclose(fh);
-		}
-		else
-		{
-			printf("failed to open firmware file\n");
-		}
-
-		// free config
-		if(osconfig != 0) {
-			// freeing properties file..
-			free_properties(osconfig);
-		}
-	}
-	else
+	if(osconfig == NULL)
 	{
 		printf("failed to open config file\n");
+		return -1;
 	}
+
+	// get rom region information from config file (see defined property list)
+	result = process_properties_list(osconfig, romProps);
+
+	// open the firmware file
+	printf("\nAttemping to open firmware file %s\n",argv[1]);
+	if((fh = fopen(argv[1],"rb")) == NULL)
+	{
+		printf("failed to open firmware file\n");
+		goto out;
+	}
+
+	//
+	// Step #0 Show interesting ROM information
+	//
+	printf("\nShowing ROM info (typically ECUID Table)\n\n");
+	result = GetRomInfo(fh, osconfig);
+
+	//
+	// Step #1 Verify Boot checksums (if requested)
+	//
+	if(BootConfig.addr.start && BootConfig.addr.end) {
+		printf("\nReading Boot checksum...\n");
+		chksum = CalcChecksumBlk(fh, &BootConfig.addr);
+		printf("Start: 0x%04X  End: 0x%04X  Chksum: 0x%08X  CalcChk: 0x%08X", BootConfig.addr.start,  BootConfig.addr.end, BootConfig.checksum, chksum);
+		if(chksum == BootConfig.checksum) {
+			printf("       OK     \n");
+		}	else {
+			printf("  ** NOT OK **\n");
+		}
+	}
+
+	//
+	// Step #2 Multi point checksums
+	//
+	printf("\nReading Multipoint Checksum Block...\n");
+	for(iTemp=0; iTemp<64; iTemp++)
+	{
+		printf("%2d) ",iTemp+1);
+		fflush(stdout);
+		result = ReadChecksumBlks(fh, Config.multipoint_block_start+(Config.multipoint_block_len*iTemp));
+		if (result == 1) { break; } // end of blocks;
+	}
+	printf("[%d x <16> = %d bytes]\n", iTemp, iTemp*16);
+
+	//
+	// Step #3 Main ROM checksums
+	//
+	printf("\nReading main ROM checksum...\n");
+	ReadMainChecksum(fh);
+
+out:
+	// close the file
+	if(fh != 0) fclose(fh);
+
+	// free config
+	if(osconfig != 0) {
+		// freeing properties file..
+		free_properties(osconfig);
+	}
+
 	return 0;
 }
 
@@ -301,7 +293,6 @@ static uint32_t ReadChecksumBlks(FILE *fh, uint32_t nStartBlk)
 	struct MultipointDescriptor desc;
 	uint32_t nCalcChksum;
 	uint32_t nCalcInvChksum;
-	uint32_t result;
 
 	printf("<%x> ",nStartBlk);
 	fflush(stdout);
@@ -311,14 +302,23 @@ static uint32_t ReadChecksumBlks(FILE *fh, uint32_t nStartBlk)
 	printf("Adr: 0x%04X-0x%04X ", desc.r.start, desc.r.end);
 	fflush(stdout);
 
-	if(desc.r.start==0xffffffff) {
+	if(desc.r.start==0xffffffff)
+	{
 		printf(" END\n");
 		return 1;	// end of blks
 	}
 
-	if(desc.r.start>=desc.r.end || desc.csum.v != ~desc.csum.iv) {
+	if(desc.r.start>=desc.r.end)
+	{
 		printf(" ** NOT OK **\n");
-		return -1;	// Error
+		return -1;	// Uncorrectable Error
+	}
+
+	printf("Sum: 0x%08X  ~0x%08X", desc.csum.v, desc.csum.iv);
+
+	if(desc.csum.v != ~desc.csum.iv) {
+		printf(" ** NOT OK **\n");
+		return -1;	// Uncorrectable Error
 	}
 
 	// calc checksum
@@ -326,27 +326,15 @@ static uint32_t ReadChecksumBlks(FILE *fh, uint32_t nStartBlk)
 	// inverted checksum
 	nCalcInvChksum = ~nCalcChksum;
 
-	printf("Sum: 0x%08X  ~0x%08X == Calc: 0x%08X ~0x%08X", desc.csum.v, desc.csum.iv, nCalcChksum, nCalcInvChksum);
-	fflush(stdout);
-	if(desc.csum.v == nCalcChksum)
+	printf(" == Calc: 0x%08X ~0x%08X", nCalcChksum, nCalcInvChksum);
+	if(desc.csum.v != nCalcChksum)
 	{
-		if(desc.r.start == 0x810000) {			// this start address contains the maps region
-			printf("  OK [MAPS]\n");
-		}
-		else
-		{
-			if(desc.csum.v == 0x1fffe000) {			// this value is checksum for all zero's... meaning empty block
-				printf("  OK [EMPTY]\n");
-			} else {
-				printf("  OK [OTHER]\n");
-			}
-		}
-		result = 0;
-	}	else {
 		printf(" ** NOT OK **\n");
-		result = -1;
+		return -1;
 	}
-	return(result);
+
+	printf("  OK\n");
+	return 0;
 }
 
 //
