@@ -63,7 +63,7 @@ struct ImageHandle {
 
 // descriptors
 struct MultipointDescriptor {
-	struct Range			r;
+	struct Range		r;
 	struct ChecksumPair	csum;
 };
 
@@ -199,7 +199,8 @@ int main(int argc, char **argv)
 	{
 		printf("\nReading Boot checksum...\n");
 		chksum = CalcChecksumBlk(&ih, &BootConfig.addr);
-		printf("Start: 0x%04X  End: 0x%04X  Chksum: 0x%08X  CalcChk: 0x%08X", BootConfig.addr.start,  BootConfig.addr.end, BootConfig.checksum, chksum);
+		printf("Start: 0x%04X  End: 0x%04X  Chksum: 0x%08X  CalcChk: 0x%08X",
+			BootConfig.addr.start,  BootConfig.addr.end, BootConfig.checksum, chksum);
 		if(chksum == BootConfig.checksum)
 		{
 			printf("       OK     \n");
@@ -378,7 +379,8 @@ static void ReadMainChecksum(struct ImageHandle *ih)
 	uint32_t nCalcChksum;
 	uint32_t nCalcChksum2;
 
-	printf("Seeking to ROM Checksum Block Offset Table 0x%X [16 bytes table]\n\n",Config.main_checksum_offset);
+	printf("Seeking to ROM Checksum Block Offset Table 0x%X [16 bytes table]\n\n",
+		Config.main_checksum_offset);
 
 	// C16x processors are little endian
 	memcpy(&desc, ih->d.p+Config.main_checksum_offset, sizeof(desc));
@@ -386,7 +388,8 @@ static void ReadMainChecksum(struct ImageHandle *ih)
 
 	// block 1
 	nCalcChksum = CalcChecksumBlk(ih, desc.r);
-	printf("Start: 0x%04X  End: 0x%04X  Block #1 - nCalcChksum=0x%04x\n", desc.r[0].start, desc.r[0].end,nCalcChksum);
+	printf("Start: 0x%04X  End: 0x%04X  Block #1 - nCalcChksum=0x%04x\n",
+		desc.r[0].start, desc.r[0].end, nCalcChksum);
 
 	if (desc.r[0].end + 1 != desc.r[1].start)
 	{
@@ -395,15 +398,18 @@ static void ReadMainChecksum(struct ImageHandle *ih)
 		{
 			skip-=Config.base_address;
 		}
-		printf("Start: 0x%04X  End: 0x%04X - MAP REGION SKIPPED, NOT PART OF MAIN CHECKSUM\n", desc.r[0].end+1, desc.r[1].start-1);
+		printf("Start: 0x%04X  End: 0x%04X - MAP REGION SKIPPED, NOT PART OF MAIN CHECKSUM\n",
+			desc.r[0].end+1, desc.r[1].start-1);
 	}
 
 	// block 2
 	nCalcChksum2= CalcChecksumBlk(ih, desc.r+1);
-	printf("Start: 0x%04X  End: 0x%04X  Block #2 - nCalcChksum=0x%04x\n", desc.r[1].start, desc.r[1].end,nCalcChksum2);
+	printf("Start: 0x%04X  End: 0x%04X  Block #2 - nCalcChksum=0x%04x\n",
+		desc.r[1].start, desc.r[1].end,nCalcChksum2);
 
 	nCalcChksum += nCalcChksum2;
-	printf("\nRead in stored MAIN ROM checksum block @ 0x%X [8 bytes]\n",Config.main_checksum_final);
+	printf("\nRead in stored MAIN ROM checksum block @ 0x%X [8 bytes]\n",
+		Config.main_checksum_final);
 
 	//Read in the stored checksum --- GOOD
 	memcpy(&csum, ih->d.p+Config.main_checksum_final, sizeof(csum));
