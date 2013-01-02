@@ -39,10 +39,10 @@ int process_properties_list(struct section *osconfig, PropertyListItem *ci)
 			pAdr  = ci[i].attr_adr;
 			if(pAdr != 0) {
 				*pAdr = get_property_value(osconfig, ci[i].attr_path, ci[i].attr_name,	ci[i].attr_default);
-				printf("get_property_value( %s, %s)\n",ci[i].attr_path,ci[i].attr_name);
+				// printf("get_property_value( %s, %s)\n",ci[i].attr_path,ci[i].attr_name);
 				if(*pAdr == 0) { 
 					errCount++;
-					printf("Warning: Failed to get value for %s %s\n",ci[i].attr_path, ci[i].attr_name);
+					// printf("Warning: Failed to get value for %s %s\n",ci[i].attr_path, ci[i].attr_name);
 				}
 			} else {
 				printf("Error: Invalid storage for property, check property list definition, item %d\n",i);

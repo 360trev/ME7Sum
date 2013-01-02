@@ -54,6 +54,7 @@ struct MultipointDescriptor {
 
 // globals
 
+static int ErrorsFound = 0;
 static int ErrorsCorrected = 0;
 
 // main firmware checksum validation
@@ -189,7 +190,7 @@ out:
 	// free config
 	if(osconfig != 0) { free_properties(osconfig); }
 
-	printf("\nDone!\n%d errors corrected!\n", ErrorsCorrected);
+	printf("\nDone!\n%d/%d errors corrected!\n", ErrorsCorrected, ErrorsFound);
 
 	return 0;
 }
@@ -308,6 +309,7 @@ static int DoMainCRCs(struct ImageHandle *ih)
 				Config.crc[i].r.start, Config.crc[i].r.end, nCRCAddr, nCalcCRC, nCRC);
 			if (nCalcCRC != nCRC)
 			{
+				ErrorsFound++;
 				if (Config.readonly)
 				{
 					printf("  ** NOT OK **\n");
@@ -374,13 +376,13 @@ static uint32_t CalcChecksumBlk(struct ImageHandle *ih, const struct Range *r)
 //
 static int DoMainChecksum(struct ImageHandle *ih)
 {
-	int fix=0;
+	int errors=0;
 	struct Range r[2];
 	struct ChecksumPair csum;
 	uint32_t nCalcChksum;
 	uint32_t nCalcChksum2;
 
-	printf("Seeking to ROM Checksum Block Offset Table 0x%X [16 bytes table]\n\n",
+	printf("ROM Checksum Block Offset Table 0x%X [16 bytes]\n\n",
 		Config.main_checksum_offset);
 
 	// C16x processors are little endian
@@ -420,18 +422,20 @@ static int DoMainChecksum(struct ImageHandle *ih)
 	if(csum.v != ~csum.iv)
 	{
 		printf(" ~Chksum : 0x%08X INV NOT OK", csum.iv);
-		fix = 1;
+		errors++;
 	}
 
 	printf(" CalcChk: 0x%08X", nCalcChksum);
 
-	if(csum.v != nCalcChksum) { fix = 1; }
+	if(csum.v != nCalcChksum) { errors++; }
 
-	if(!fix)
+	if(!errors)
 	{
 		printf("  Main ROM checksum OK\n");
 		return 0;
 	}
+
+	ErrorsFound+=errors;
 
 	if(Config.readonly)
 	{
@@ -439,22 +443,13 @@ static int DoMainChecksum(struct ImageHandle *ih)
 		return -1;
 	}
 
-	if(csum.v != nCalcChksum)
-	{
-		csum.v = nCalcChksum;
-		ErrorsCorrected++;
-	}
-
-	if(csum.iv != ~nCalcChksum)
-	{
-		csum.iv = ~nCalcChksum;
-		ErrorsCorrected++;
-	}
+	csum.v = nCalcChksum;
+	csum.iv = ~nCalcChksum;
 
 	memcpy_to_le32(ih->d.p+Config.main_checksum_final, &csum, sizeof(csum));
 
 	printf(" ** FIXED! **\n");
-
+	ErrorsCorrected+=errors;
 	return 0;
 }
 
@@ -465,7 +460,7 @@ static int DoChecksumBlks(struct ImageHandle *ih, uint32_t nStartBlk)
 	// C16x processors are little endian
 	struct MultipointDescriptor desc;
 	uint32_t nCalcChksum;
-	int fix=0;
+	int errors=0;
 
 	printf("<%x> ",nStartBlk);
 	fflush(stdout);
@@ -500,20 +495,22 @@ static int DoChecksumBlks(struct ImageHandle *ih, uint32_t nStartBlk)
 	if(desc.csum.v != ~desc.csum.iv)
 	{
 		printf("  ~0x%08X INV NOT OK", desc.csum.iv);
-		fix=1;
+		errors++;
 	}
 
 	// calc checksum
 	nCalcChksum = CalcChecksumBlk(ih, &desc.r);
 
 	printf(" CalcChk: 0x%08X", nCalcChksum);
-	if(desc.csum.v != nCalcChksum) { fix=1; }
+	if(desc.csum.v != nCalcChksum) { errors++; }
 
-	if (!fix)
+	if (!errors)
 	{
 		printf("  OK\n");
 		return 0;
 	}
+
+	ErrorsFound+=errors;
 
 	if (Config.readonly)
 	{
@@ -521,22 +518,12 @@ static int DoChecksumBlks(struct ImageHandle *ih, uint32_t nStartBlk)
 		return -1;
 	}
 
-	if (desc.csum.v != nCalcChksum)
-	{
-		desc.csum.v = nCalcChksum;
-		ErrorsCorrected++;
-	}
-
-	if (desc.csum.iv != ~nCalcChksum)
-	{
-		desc.csum.iv = ~nCalcChksum;
-		ErrorsCorrected++;
-	}
-
+	desc.csum.v = nCalcChksum;
+	desc.csum.iv = ~nCalcChksum;
 	memcpy_to_le32(ih->d.p+nStartBlk, &desc, sizeof(desc));
 
 	printf(" ** FIXED! **\n");
-
+	ErrorsCorrected+=errors;
 	return 0;
 }
 
