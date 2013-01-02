@@ -330,7 +330,7 @@ static int DoMainCRCs(struct ImageHandle *ih)
 			p32=(uint32_t *)(ih->d.u8 + nCRCAddr);
 			nCRC=le32toh(*p32);
 			printf("Adr: 0x%06X-0x%06X @0x%x CRC: 0x%08X  CalcCRC: 0x%08X",
-				Config.crc[i].r.start, Config.crc[i].r.end, nCRCAddr, nCalcCRC, nCRC);
+				Config.crc[i].r.start, Config.crc[i].r.end, nCRCAddr, nCRC, nCalcCRC);
 			if (nCalcCRC != nCRC)
 			{
 				ErrorsFound++;
