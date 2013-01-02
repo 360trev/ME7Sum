@@ -75,12 +75,6 @@ struct rom_config {
 	} crc[3];								/* 3 CRC blocks to check */
 } Config;
 
-// boot sector validation (optional, generally already in multipoint blocks above) */
-struct rom_boot_config {
-	struct Range	addr;
-	uint32_t		checksum;
-} BootConfig;
-
 //
 // List of configurable properties to read from config file into our programme...
 // [this stops us having to hardcode values into the code itself]
