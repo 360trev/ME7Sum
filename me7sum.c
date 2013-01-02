@@ -81,7 +81,7 @@ struct rom_config {
 //
 PropertyListItem romProps[] = {
 	// get rom region information
-	{	GET_VALUE,  &Config.base_address,			"ignition", "rom_firmware_start",		"0"},
+	{	GET_VALUE,  &Config.base_address,			"ignition", "rom_firmware_start",		"0x800000"},
 	{	GET_VALUE,  &Config.multipoint_block_start,	"ignition", "rom_checksum_block_start",	"0"},
 	{	GET_VALUE,  &Config.multipoint_block_len,	"ignition", "rom_checksum_block_len",	"0x10"},
 	{	GET_VALUE,  &Config.main_checksum_offset,	"ignition", "rom_checksum_offset",		"0"},
