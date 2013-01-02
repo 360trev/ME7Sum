@@ -151,29 +151,39 @@ int main(int argc, char **argv)
 	//
 	// Step #0 Show interesting ROM information
 	//
-	printf("\nShowing ROM info (typically ECUID Table)\n\n");
-	result = GetRomInfo(&ih, osconfig);
+	if (get_property_value(osconfig, "dumps", "dump_show", NULL)>0)
+	{
+		printf("\nStep #0: Showing ROM info (typically ECUID Table)\n\n");
+		result = GetRomInfo(&ih, osconfig);
+	}
+	else
+	{
+		printf("\nStep #0: Skipping ROM info... undefined\n");
+	}
 
 	//
 	// Step #1 Main ROM CRCs if specified
 	//
-	if(Config.crc[0].r.start && Config.crc[0].r.end) {
-		printf("\nReading main ROM CRC...\n");
+	if(Config.crc[0].r.start && Config.crc[0].r.end)
+	{
+		printf("\nStep #1: Reading main ROM CRC...\n");
 		DoMainCRCs(&ih);
-	} else {
-		printf("\nSkipping main ROM CRCs... undefined\n");
+	}
+	else
+	{
+		printf("\nStep #1: Skipping main ROM CRCs... undefined\n");
 	}
 
 	//
 	// Step #2 Main ROM checksums
 	//
-	printf("\nReading main ROM checksum...\n");
+	printf("\nStep #2: Reading main ROM checksum...\n");
 	DoMainChecksum(&ih);
 
 	//
 	// Step #3 Multi point checksums
 	//
-	printf("\nReading Multipoint Checksum Block...\n");
+	printf("\nStep #3: Reading Multipoint Checksum Block...\n");
 	for(iTemp=0; iTemp<64; iTemp++)
 	{
 		printf("%2d) ",iTemp+1);
@@ -221,7 +231,7 @@ static int GetRomInfo(struct ImageHandle *ih, struct section *osconfig)
 
 	if(ih == 0) return(-1);
 	//
-	// Step #0 this dynamically walks through the config file and shows all properties defined...
+	// Dynamically walks through the config file and shows all properties defined...
 	//
 	num_of = get_property_value(osconfig, "dumps", "dump_show", NULL);
 	for(i=1;i<=num_of;i++)
@@ -401,7 +411,7 @@ static int DoMainChecksum(struct ImageHandle *ih)
 		{
 			skip-=Config.base_address;
 		}
-		printf("Adr: 0x%06X-0x%06X - MAP REGION SKIPPED, NOT PART OF MAIN CHECKSUM\n",
+		printf("Adr: 0x%06X-0x%06X  MAP REGION SKIPPED, NOT PART OF MAIN CHECKSUM\n",
 			r[0].end+1, r[1].start-1);
 	}
 
