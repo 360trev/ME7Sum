@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 
-#include "lib_ini/inifile.h"
+#include "inifile/inifile.h"
 
 #ifdef  __cplusplus
 extern "C" {
