@@ -71,12 +71,14 @@ struct MultipointDescriptor {
 // main firmware checksum validation
 struct rom_config {
 	uint32_t	base_address;				/* rom base address */
-	uint32_t	multipoint_block_start;	/* start of multipoint block descriptors */
+	uint32_t	multipoint_block_start;		/* start of multipoint block descriptors */
 	uint32_t	multipoint_block_len;		/* size of descriptors */
 	uint32_t	main_checksum_offset;		/* two start/end pairs, one at offset, other at offset+8 */
 	uint32_t	main_checksum_final;		/* two 4 byte checksum (one inv) for two blocks conctatenated above) */
-	struct Range crc_range[3];
-	uint32_t	crc[3];
+	struct {
+		struct Range r;
+		uint32_t	offset;
+	} crc[3];								/* 3 CRC blocks to check */
 } Config = { .multipoint_block_len=sizeof(struct MultipointDescriptor) };
 
 // boot sector validation (optional, generally already in multipoint blocks above) */
@@ -96,15 +98,15 @@ PropertyListItem romProps[] = {
 	{	GET_VALUE,  &Config.multipoint_block_len,	"ignition", "rom_checksum_block_len",	},
 	{	GET_VALUE,  &Config.main_checksum_offset,	"ignition", "rom_checksum_offset",		},
 	{	GET_VALUE,  &Config.main_checksum_final,	"ignition", "rom_checksum_final",		},
-	{	GET_VALUE,  &Config.crc_range[0].start,		"ignition", "rom_crc1_start",			},
-	{	GET_VALUE,  &Config.crc_range[0].end,		"ignition", "rom_crc1_end",				},
-	{	GET_VALUE,  &Config.crc[0],					"ignition", "rom_crc1",					},
-	{	GET_VALUE,  &Config.crc_range[1].start,		"ignition", "rom_crc2_start",			},
-	{	GET_VALUE,  &Config.crc_range[1].end,		"ignition", "rom_crc2_end",				},
-	{	GET_VALUE,  &Config.crc[1],					"ignition", "rom_crc2",					},
-	{	GET_VALUE,  &Config.crc_range[2].start,		"ignition", "rom_crc3_start",			},
-	{	GET_VALUE,  &Config.crc_range[2].end,		"ignition", "rom_crc3_end",				},
-	{	GET_VALUE,  &Config.crc[2],					"ignition", "rom_crc3",					},
+	{	GET_VALUE,  &Config.crc[0].r.start,			"ignition", "rom_crc1_start",			},
+	{	GET_VALUE,  &Config.crc[0].r.end,			"ignition", "rom_crc1_end",				},
+	{	GET_VALUE,  &Config.crc[0].offset,			"ignition", "rom_crc1",					},
+	{	GET_VALUE,  &Config.crc[1].r.start,			"ignition", "rom_crc2_start",			},
+	{	GET_VALUE,  &Config.crc[1].r.end,			"ignition", "rom_crc2_end",				},
+	{	GET_VALUE,  &Config.crc[1].offset,			"ignition", "rom_crc2",					},
+	{	GET_VALUE,  &Config.crc[2].r.start,			"ignition", "rom_crc3_start",			},
+	{	GET_VALUE,  &Config.crc[2].r.end,			"ignition", "rom_crc3_end",				},
+	{	GET_VALUE,  &Config.crc[2].offset,			"ignition", "rom_crc3",					},
 	// get boot sector validation information
 	{	GET_VALUE,  &BootConfig.addr.start,			"ignition", "rom_boot_Startaddr",		},
 	{	GET_VALUE,  &BootConfig.addr.end,			"ignition", "rom_boot_Endaddr",			},
@@ -512,12 +514,12 @@ static int ReadMainCRC(struct ImageHandle *ih)
 	int i;
 	for (i=0; i<3; i++)
 	{
-		if(Config.crc_range[i].start && Config.crc_range[i].end)
+		if(Config.crc[i].r.start && Config.crc[i].r.end)
 		{
 			uint32_t nCalcCRC;
-			uint32_t nStart = Config.crc_range[i].start - Config.base_address;
-			size_t nLen = Config.crc_range[i].end - Config.crc_range[i].start + 1;
-			uint32_t nCRCAddr = Config.crc[i] - Config.base_address;
+			uint32_t nStart = Config.crc[i].r.start - Config.base_address;
+			size_t nLen = Config.crc[i].r.end - Config.crc[i].r.start + 1;
+			uint32_t nCRCAddr = Config.crc[i].offset - Config.base_address;
 			uint32_t nCRC;
 
 			nCalcCRC = crc32(0, ih->d.p+nStart, nLen);
@@ -527,7 +529,7 @@ static int ReadMainCRC(struct ImageHandle *ih)
 #else
 			nCRC=__bswap_32(*(uint32_t *)(ih->d.p + nCRCAddr));
 #endif
-			printf("Adr: 0x%06X-0x%06X  CRC: 0x%08X  CalcCRC: 0x%08X",  Config.crc_range[i].start,   Config.crc_range[i].end, nCalcCRC, nCRC);
+			printf("Adr: 0x%06X-0x%06X  CRC: 0x%08X  CalcCRC: 0x%08X",  Config.crc[i].r.start,   Config.crc[i].r.end, nCalcCRC, nCRC);
 			if (nCalcCRC == nCRC)
 			{
 				printf("  Main ROM OK\n");
