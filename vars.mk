@@ -2,7 +2,7 @@ RM      =rm -f
 CC      =gcc
 AR      =ar rcs
 ECHO    =@echo
-CFLAGS  =-Wall -O3 -Werror
+CFLAGS  =-Wall -O3 -Werror -MD
 
 UNAME := $(shell uname -s)
 ifeq ($(findstring CYGWIN,$(UNAME)),CYGWIN)
