@@ -34,17 +34,14 @@ struct ImageHandle {
 // they're the same.
 #define memcpy_to_le32 memcpy_from_le32
 
-#ifdef _WIN32
-#else
-static inline void memcpy_from_le32(void *dest, void *src, size_t len)
-{
 #if __BYTE_ORDER == __LITTLE_ENDIAN
-	memcpy(dest, src, len);
+#define memcpy_from_le32(dest, src, len) \
+	memcpy(dest, src, len)
 #else
-	int i;
-	for (i=0;i<len/4;i++)
-		((uint32_t *)dest)[i] = __bswap_32(((uint32_t *)src)[i]);
-#endif
+#define memcpy_from_le32(dest, src, len) { \
+	int i; \
+	for (i=0;i<len/4;i++) \
+		((uint32_t *)dest)[i] = __bswap_32(((uint32_t *)src)[i]); \
 }
 #endif
 
