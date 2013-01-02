@@ -121,15 +121,20 @@ int main(int argc, char **argv)
 	printf("Inspiration from Andy Whittaker's tools and information\n");
 	printf("Written by 360trev and nyet [BSD License Open Source]. \n\n");
 
-	if(argc < 4)
+	if(argc < 3 || argc > 4)
 	{
-		printf("Usage: %s <inrom.bin> <outrom.bin> <config.ini>\n",argv[0]);
+		printf("Usage: %s <config.ini> <inrom.bin> [outrom.bin]\n",argv[0]);
 		return -1;
 	}
 
-	printf("Attemping to open firmware config file %s\n",argv[3]);
+	if(argc==3)
+	{
+		Config.readonly=1;
+	}
+
+	printf("Attemping to open firmware config file %s\n",argv[1]);
 	// load properties file into memory
-	osconfig = read_properties(argv[3]);
+	osconfig = read_properties(argv[1]);
 	if(osconfig == NULL)
 	{
 		printf("failed to open config file\n");
@@ -140,8 +145,8 @@ int main(int argc, char **argv)
 	result = process_properties_list(osconfig, romProps);
 
 	// open the firmware file
-	printf("\nAttemping to open firmware file %s\n",argv[1]);
-	if (iload_file(&ih, argv[1], Config.readonly?0:1))
+	printf("\nAttemping to open firmware file %s\n",argv[2]);
+	if (iload_file(&ih, argv[2], 0))
 	{
 		printf("failed to open firmware file\n");
 		goto out;
@@ -198,13 +203,13 @@ int main(int argc, char **argv)
 	}
 	printf("[%d x <16> = %d bytes]\n", iTemp, iTemp*16);
 
-	if(ErrorsCorrected > 0) {
+	if(argc>3 && ErrorsCorrected > 0) {
 		// write crc corrected file out
-		save_file(argv[2],ih.d.p,ih.len);
+		save_file(argv[3],ih.d.p,ih.len);
 	}
 
 out:
-	
+
 	// close the file
 	if(ih.d.p != 0) { ifree_file(&ih); }
 
