@@ -155,6 +155,7 @@ int main(int argc, char **argv)
 	if ((num_of = get_property_value(osconfig, "dumps", "dump_show", NULL))>0)
 	{
 		printf("\nStep #0: Showing ROM info (typically ECUID Table)\n\n");
+		// pass number of properties found to rom info function (cures bug!)
 		result = GetRomInfo(&ih, osconfig, num_of);
 	}
 	else
