@@ -100,7 +100,7 @@ PropertyListItem romProps[] = {
 	{ END_LIST,   0, "",""},
 };
 
-static int GetRomInfo(struct ImageHandle *ih, struct section *osconfig);
+static int GetRomInfo(struct ImageHandle *ih, struct section *osconfig,	uint32_t num_of);
 static int DoMainCRCs(struct ImageHandle *ih);
 static int DoMainChecksum(struct ImageHandle *ih);
 static int DoChecksumBlks(struct ImageHandle *ih, uint32_t nStartBlk);
@@ -114,6 +114,7 @@ int main(int argc, char **argv)
 {
 	int	iTemp;
 	int result;
+	int num_of;
 	struct ImageHandle ih;
 	struct section *osconfig;
 
@@ -151,10 +152,10 @@ int main(int argc, char **argv)
 	//
 	// Step #0 Show interesting ROM information
 	//
-	if (get_property_value(osconfig, "dumps", "dump_show", NULL)>0)
+	if ((num_of = get_property_value(osconfig, "dumps", "dump_show", NULL))>0)
 	{
 		printf("\nStep #0: Showing ROM info (typically ECUID Table)\n\n");
-		result = GetRomInfo(&ih, osconfig);
+		result = GetRomInfo(&ih, osconfig, num_of);
 	}
 	else
 	{
@@ -211,7 +212,7 @@ out:
  * - uses config file to parse rom data and show interesting information about this rom dump
  */
 
-static int GetRomInfo(struct ImageHandle *ih, struct section *osconfig)
+static int GetRomInfo(struct ImageHandle *ih, struct section *osconfig,	uint32_t num_of)
 {
 	char str_data[1024];
 	char type_str[256];
@@ -219,7 +220,6 @@ static int GetRomInfo(struct ImageHandle *ih, struct section *osconfig)
 	char label_str[256];
 	char offset_str[256];
 	char length_str[256];
-	uint32_t num_of;
 #ifdef DEBUG
 	char * ptr_type;
 #endif
@@ -233,7 +233,6 @@ static int GetRomInfo(struct ImageHandle *ih, struct section *osconfig)
 	//
 	// Dynamically walks through the config file and shows all properties defined...
 	//
-	num_of = get_property_value(osconfig, "dumps", "dump_show", NULL);
 	for(i=1;i<=num_of;i++)
 	{
 		sprintf(type_str,   "dump_%d_type",   i);
@@ -274,7 +273,7 @@ static int GetRomInfo(struct ImageHandle *ih, struct section *osconfig)
 			snprintf(str_data, ptr_length, "%s", ih->d.s+ptr_offset);
 			if(! strncmp("true",(char *)ptr_visible,4))
 			{
-				printf("%s = '%s'\n",ptr_label, str_data);
+				printf("%-20.20s '%s'\n",ptr_label, str_data);
 			}
 			else
 			{
@@ -477,7 +476,7 @@ static int DoChecksumBlks(struct ImageHandle *ih, uint32_t nStartBlk)
 
 	if(nStartBlk + sizeof(desc) >= ih->len)
 	{
-		printf(" INVALID STARTBLK/LEN 0x%x/%zd ** NOT OK **\n", nStartBlk, ih->len);
+		printf(" INVALID STARTBLK/LEN 0x%x/%ld ** NOT OK **\n", nStartBlk, (long int)ih->len);
 		return -1;	// Uncorrectable Error
 	}
 
