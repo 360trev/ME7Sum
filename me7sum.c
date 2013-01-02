@@ -32,6 +32,10 @@
 #include <string.h>
 #include <errno.h>
 
+#if _MSC_VER
+#define snprintf _snprintf
+#endif
+
 #include "inifile_prop.h"
 #include "crc32.h"
 #include "utils.h"

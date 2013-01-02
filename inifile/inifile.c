@@ -1,7 +1,9 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-#include <unistd.h> // added back in, unable to compile under win32 mingw without it. (for write() function)
+#ifndef _MSC_VER
+#include <unistd.h>
+#endif
 #include "inifile.h"
 
 static char *trimstr(char *s, char *end)

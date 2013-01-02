@@ -1,8 +1,9 @@
 TARGET = me7sum.exe
-SOURCES = crc32.c inifile_prop.c me7sum.c utils.c inifile/inifile.c
+SOURCES = crc32.c inifile_prop.c me7sum.c utils.c load_file.c save_file.c inifile/inifile.c
+
 all: $(TARGET)
 $(TARGET):$(SOURCES)
-	cl /EHsc /Fe$@ $(SOURCES)
+	cl /EHsc /Fe$@ /Tc $(CFLAGS) $(SOURCES)
 
 clean:
 	del $(TARGET) *.obj
