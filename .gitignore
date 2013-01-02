@@ -1,0 +1,5 @@
+*.o
+*.obj
+*.a
+*.exe
+me7sum
