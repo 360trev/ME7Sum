@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-#include <unistd.h>
+#include <unistd.h> // added back in, unable to compile under win32 mingw without it. (for write() function)
 #include "inifile.h"
 
 static char *trimstr(char *s, char *end)
