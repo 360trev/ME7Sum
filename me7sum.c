@@ -1,5 +1,5 @@
 /* me7sum [ firmware management tool for Bosch ME7.x firmware]
-   By 360trev
+   By 360trev and nyet
 
    Inspired by work from Andy Whittaker's (tools and information)
    See http://www.andywhittaker.com/ECU/BoschMotronicME71.aspx
@@ -119,7 +119,7 @@ int main(int argc, char **argv)
 	// information about the tool
 	printf("ME7Tool [ Management tool for Bosch ME7.x firmwares]\n");
 	printf("Inspiration from Andy Whittaker's tools and information\n");
-	printf("Written by 360trev [FREEWARE]. \n\n");
+	printf("Written by 360trev and nyet [FREEWARE]. \n\n");
 
 	if(argc < 3)
 	{
