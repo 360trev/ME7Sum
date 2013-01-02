@@ -34,6 +34,7 @@
 #include <errno.h>
 #include <fcntl.h>	/* open() */
 #include <unistd.h>	/* close() */
+#include <endian.h>
 #include <sys/stat.h>
 #include <sys/mman.h>
 
@@ -315,6 +316,16 @@ static int GetRomInfo(struct ImageHandle *ih, struct section *osconfig)
 	return 0;
 }
 
+static void memcpy_from_le32(void *dest, void *src, size_t len)
+{
+#if __BYTE_ORDER == __LITTLE_ENDIAN
+	memcpy(dest, src, len);
+#else
+	int i;
+	for (i=0;i<len/4;i++)
+		((uint32_t *)dest)[i] = __bswap_32(((uint32_t *)src)[i]);
+#endif
+}
 
 // Reads the individual checksum blocks that start at nStartBlk
 static uint32_t ReadChecksumBlks(struct ImageHandle *ih, uint32_t nStartBlk)
@@ -327,8 +338,9 @@ static uint32_t ReadChecksumBlks(struct ImageHandle *ih, uint32_t nStartBlk)
 
 	printf("<%x> ",nStartBlk);
 	fflush(stdout);
-	// todo: endian swap on bigendian host
-	memcpy(&desc, ih->d.p+nStartBlk, sizeof(desc));
+
+	memcpy_from_le32(&desc, ih->d.p+nStartBlk, sizeof(desc));
+
 	printf("Adr: 0x%04X-0x%04X ", desc.r.start, desc.r.end);
 	fflush(stdout);
 
@@ -381,8 +393,7 @@ static void ReadMainChecksum(struct ImageHandle *ih)
 	printf("Seeking to ROM Checksum Block Offset Table 0x%X [16 bytes table]\n\n",Config.main_checksum_offset);
 
 	// C16x processors are little endian
-	memcpy(&desc, ih->d.p+Config.main_checksum_offset, sizeof(desc));
-	// todo: endian swap on bigendian host
+	memcpy_from_le32(&desc, ih->d.p+Config.main_checksum_offset, sizeof(desc));
 
 	// block 1
 	nCalcChksum = CalcChecksumBlk(ih, desc.r);
@@ -406,8 +417,7 @@ static void ReadMainChecksum(struct ImageHandle *ih)
 	printf("\nRead in stored MAIN ROM checksum block @ 0x%X [8 bytes]\n",Config.main_checksum_final);
 
 	//Read in the stored checksum --- GOOD
-	memcpy(&csum, ih->d.p+Config.main_checksum_final, sizeof(csum));
-	// todo: endian swap on bigendian host
+	memcpy_from_le32(&csum, ih->d.p+Config.main_checksum_final, sizeof(csum));
 
 	printf("Chksum : 0x%08X ~Chksum : 0x%08X\n", csum.v, csum.iv);
 	printf("CalcChk: 0x%08X ~CalcChk: 0x%08X", nCalcChksum, ~nCalcChksum);
@@ -446,8 +456,11 @@ static uint32_t CalcChecksumBlk(struct ImageHandle *ih, const struct Range *r)
 
 	for(nIndex = nStartAddr/2; nIndex <= nEndAddr/2; nIndex++)
 	{
+#if __BYTE_ORDER == __LITTLE_ENDIAN
 		nChecksum+=ih->d.u16[nIndex];
-		// todo: endian
+#else
+		nChecksum+=__bswap_16(ih->d.u16[nIndex]);
+#endif
 	}
 	return nChecksum;
 }
