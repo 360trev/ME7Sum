@@ -5,4 +5,4 @@ LIB     =libini.a
 
 include ../makefile.common
 
-inifile.o: inifile.c inifile.h
+inifile.c: inifile.h

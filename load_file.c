@@ -23,10 +23,10 @@
 #include "load_file.h"
 
 /* load a file into memory and return buffer */
-unsigned char *load_file(char *filename, size_t *filelen)
+unsigned char *load_file(const char *filename, size_t *filelen)
 {
 	FILE *fp;
-	unsigned char *data;
+	uint8_t *data;
 	size_t size,bytesRead;
 
 	/* open file */
@@ -39,12 +39,12 @@ unsigned char *load_file(char *filename, size_t *filelen)
 	size = ftell(fp);
 	fseek(fp, 0, SEEK_SET);
 	if(size <= 0) { printf("Error: Problem with seeking filesize\n"); fclose(fp); return(0); }
-		
+
 	*filelen = size;		/* return size of file to caller */
 
 	/* alloc buffer for file */
-	printf("þ Allocating buffer of %d bytes\n",size);
-	data = (unsigned char *)malloc(size);
+	printf("þ Allocating buffer of %zd bytes\n",size);
+	data = (uint8_t *)malloc(size);
 	if(data == 0) { printf("\nfailed to allocate memory to load module\n"); fclose(fp); return 0; }
 
 	/* load file into buffer */
@@ -52,7 +52,7 @@ unsigned char *load_file(char *filename, size_t *filelen)
 	bytesRead = fread(data, 1, size, fp);
 
 	/* validate it all loaded correctly */
-	printf("þ Validating size correct %d=%d\n",bytesRead,size);
+	printf("þ Validating size correct %zd=%zd\n",bytesRead,size);
 	if(bytesRead != size) { printf("\nfailed to load module into buffer\n"); free(data); fclose(fp); return 0; }
 
 	/* close the file */

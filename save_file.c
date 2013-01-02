@@ -23,7 +23,7 @@
 #include "save_file.h"
 
 /* load a file into memory and return buffer */
-int save_file(char *filename, unsigned char *filebuf, size_t filelen)
+int save_file(const char *filename, const uint8_t *filebuf, size_t filelen)
 {
 	FILE *fp;
 	size_t bytesWritten;

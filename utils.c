@@ -5,7 +5,7 @@ int iload_file(struct ImageHandle *ih, const char *fname, int rw)
 	// init image handle structure to zero's
 	memset(ih, 0, sizeof(*ih));
 	// load file into memory
-	if(((ih->d.p)= (void *)load_file((char *)fname,&ih->len)) == 0) return -1;
+	if(((ih->d.p)= (void *)load_file(fname,&ih->len)) == 0) return -1;
 	return 0;
 }
 

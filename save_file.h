@@ -26,8 +26,9 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <stdint.h>
 
 /* save a file from memory */
-int save_file(char *filename, unsigned char *filebuf, size_t filelen);
+int save_file(const char *filename, const uint8_t *filebuf, size_t filelen);
 
 #endif
