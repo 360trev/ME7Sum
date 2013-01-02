@@ -3,3 +3,6 @@ SOURCES = crc32.c inifile_prop.c me7sum.c utils.c inifile/inifile.c
 all: $(TARGET)
 $(TARGET):$(SOURCES)
 	cl /EHsc /Fe$@ $(SOURCES)
+
+clean:
+	del $(TARGET) *.obj
