@@ -8,6 +8,9 @@
 #include <endian.h>
 #endif
 
+#include "load_file.h"
+#include "save_file.h"
+
 struct ImageHandle {
 	union {
 //		uint32_t	*u32;
@@ -45,7 +48,7 @@ struct ImageHandle {
 }
 #endif
 
-int mmap_file(struct ImageHandle *ih, const char *fname, int rw);
-int munmap_file(struct ImageHandle *ih);
+int iload_file(struct ImageHandle *ih, const char *fname, int rw);
+int ifree_file(struct ImageHandle *ih);
 
 #endif

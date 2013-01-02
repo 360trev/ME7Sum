@@ -121,17 +121,17 @@ int main(int argc, char **argv)
 	// information about the tool
 	printf("ME7Tool [ Management tool for Bosch ME7.x firmwares]\n");
 	printf("Inspiration from Andy Whittaker's tools and information\n");
-	printf("Written by 360trev and nyet [FREEWARE]. \n\n");
+	printf("Written by 360trev and nyet [BSD License Open Source]. \n\n");
 
-	if(argc < 3)
+	if(argc < 4)
 	{
-		printf("Usage: %s <firmware.bin> <config.ini>\n",argv[0]);
+		printf("Usage: %s <inrom.bin> <outrom.bin> <config.ini>\n",argv[0]);
 		return -1;
 	}
 
-	printf("Attemping to open firmware config file %s\n",argv[2]);
+	printf("Attemping to open firmware config file %s\n",argv[3]);
 	// load properties file into memory
-	osconfig = read_properties(argv[2]);
+	osconfig = read_properties(argv[3]);
 	if(osconfig == NULL)
 	{
 		printf("failed to open config file\n");
@@ -143,7 +143,7 @@ int main(int argc, char **argv)
 
 	// open the firmware file
 	printf("\nAttemping to open firmware file %s\n",argv[1]);
-	if (mmap_file(&ih, argv[1], Config.readonly?0:1))
+	if (iload_file(&ih, argv[1], Config.readonly?0:1))
 	{
 		printf("failed to open firmware file\n");
 		goto out;
@@ -155,7 +155,6 @@ int main(int argc, char **argv)
 	if ((num_of = get_property_value(osconfig, "dumps", "dump_show", NULL))>0)
 	{
 		printf("\nStep #0: Showing ROM info (typically ECUID Table)\n\n");
-		// pass number of properties found to rom info function (cures bug!)
 		result = GetRomInfo(&ih, osconfig, num_of);
 	}
 	else
@@ -195,9 +194,15 @@ int main(int argc, char **argv)
 	}
 	printf("[%d x <16> = %d bytes]\n", iTemp, iTemp*16);
 
+	if(ErrorsCorrected > 0) {
+		// write crc corrected file out
+		save_file(argv[2],ih.d.p,ih.len);
+	}
+
 out:
+	
 	// close the file
-	if(ih.d.p != 0) { munmap_file(&ih); }
+	if(ih.d.p != 0) { ifree_file(&ih); }
 
 	// free config
 	if(osconfig != 0) { free_properties(osconfig); }
