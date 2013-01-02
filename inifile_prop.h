@@ -1,6 +1,8 @@
 #ifndef INIFILE_PROP_H
 #define INIFILE_PROP_H
 
+#include <stdint.h>
+
 #include "lib_ini/inifile.h"
 
 #ifdef  __cplusplus

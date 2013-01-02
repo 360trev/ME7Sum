@@ -30,16 +30,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdint.h>
 #include <errno.h>
-#include <fcntl.h>	/* open() */
-#include <unistd.h>	/* close() */
-#include <endian.h>
-#include <sys/stat.h>
-#include <sys/mman.h>
 
 #include "inifile_prop.h"
 #include "crc32.h"
+#include "utils.h"
 
 // structures
 struct Range {
@@ -52,24 +47,18 @@ struct ChecksumPair {
 	uint32_t	iv;	// inverse value
 };
 
-struct ImageHandle {
-	union {
-//		uint32_t	*u32;
-		uint16_t	*u16;
-//		uint8_t		*u8;
-		char		*s;
-		void		*p;
-	} d;
-	size_t	len;
+struct MultipointDescriptor {
+	struct Range            r;
+	struct ChecksumPair     csum;
 };
 
-struct MultipointDescriptor {
-	struct Range		r;
-	struct ChecksumPair	csum;
-};
+// globals
+
+static int ErrorsCorrected = 0;
 
 // main firmware checksum validation
 struct rom_config {
+	int			readonly;
 	uint32_t	base_address;				/* rom base address */
 	uint32_t	multipoint_block_start;		/* start of multipoint block descriptors */
 	uint32_t	multipoint_block_len;		/* size of descriptors */
@@ -111,47 +100,14 @@ PropertyListItem romProps[] = {
 };
 
 static int GetRomInfo(struct ImageHandle *ih, struct section *osconfig);
-static uint32_t CalcChecksumBlk(struct ImageHandle *ih, const struct Range *);
-static int ReadChecksumBlks(struct ImageHandle *ih, uint32_t nStartBlk);
-static int ReadMainChecksum(struct ImageHandle *ih);
-static int ReadMainCRC(struct ImageHandle *ih);
+static int DoMainCRCs(struct ImageHandle *ih);
+static int DoMainChecksum(struct ImageHandle *ih);
+static int DoChecksumBlks(struct ImageHandle *ih, uint32_t nStartBlk);
 
 /*
  * main()
  *
  */
-
-static int mmap_file(struct ImageHandle *ih, const char *fname, int rw)
-{
-	int fd;
-	struct stat buf = {};
-	void *p;
-
-	memset(ih, 0, sizeof(*ih));
-
-	if((fd = open(fname, rw ? O_RDWR : O_RDONLY)) < 0)
-		return -1;
-
-	if(fstat(fd, &buf))
-	{
-		close(fd);
-		return -1;
-	}
-
-	p = mmap(NULL, buf.st_size, rw?PROT_READ|PROT_WRITE:PROT_READ, MAP_SHARED, fd, 0);
-	if (p == MAP_FAILED)
-	{
-		close(fd);
-		return -1;
-	}
-
-	close(fd);
-
-	ih->d.p=p;
-	ih->len=buf.st_size;
-
-	return 0;
-}
 
 int main(int argc, char **argv)
 {
@@ -185,48 +141,55 @@ int main(int argc, char **argv)
 
 	// open the firmware file
 	printf("\nAttemping to open firmware file %s\n",argv[1]);
-	if (mmap_file(&ih, argv[1], 0))
+	if (mmap_file(&ih, argv[1], Config.readonly?0:1))
 	{
 		printf("failed to open firmware file\n");
 		goto out;
 	}
 
 	//
-	// Step #1 Show interesting ROM information
+	// Step #0 Show interesting ROM information
 	//
 	printf("\nShowing ROM info (typically ECUID Table)\n\n");
 	result = GetRomInfo(&ih, osconfig);
 
 	//
-	// Step #2 Multi point checksums
+	// Step #1 Main ROM CRCs if specified
+	//
+	if(Config.crc[0].r.start && Config.crc[0].r.end) {
+		printf("\nReading main ROM CRC...\n");
+		DoMainCRCs(&ih);
+	} else {
+		printf("\nSkipping main ROM CRCs... undefined\n");
+	}
+
+	//
+	// Step #2 Main ROM checksums
+	//
+	printf("\nReading main ROM checksum...\n");
+	DoMainChecksum(&ih);
+
+	//
+	// Step #3 Multi point checksums
 	//
 	printf("\nReading Multipoint Checksum Block...\n");
 	for(iTemp=0; iTemp<64; iTemp++)
 	{
 		printf("%2d) ",iTemp+1);
 		fflush(stdout);
-		result = ReadChecksumBlks(&ih, Config.multipoint_block_start+(Config.multipoint_block_len*iTemp));
+		result = DoChecksumBlks(&ih, Config.multipoint_block_start+(Config.multipoint_block_len*iTemp));
 		if (result == 1) { break; } // end of blocks;
 	}
 	printf("[%d x <16> = %d bytes]\n", iTemp, iTemp*16);
 
-	//
-	// Step #3 Main ROM checksums
-	//
-	printf("\nReading main ROM checksum...\n");
-	ReadMainChecksum(&ih);
-
-	//
-	// Step #4 Main ROM CRCs
-	//
-	printf("\nReading main ROM CRC...\n");
-	ReadMainCRC(&ih);
 out:
 	// close the file
-	if(ih.d.p != 0) { munmap(ih.d.p, ih.len); }
+	if(ih.d.p != 0) { munmap_file(&ih); }
 
 	// free config
 	if(osconfig != 0) { free_properties(osconfig); }
+
+	printf("\nDone!\n%d errors corrected!\n", ErrorsCorrected);
 
 	return 0;
 }
@@ -311,93 +274,107 @@ static int GetRomInfo(struct ImageHandle *ih, struct section *osconfig)
 	return 0;
 }
 
-#if __BYTE_ORDER == __LITTLE_ENDIAN
-#define le32toh(x) (x)
-#define le16toh(x) (x)
-#define htole32(x) (x)
-#define htole16(x) (x)
-#else
-#define le32toh(x) __bswap_32(x)
-#define htole16(x) __bswap_16(x)
-#define le32toh(x) __bswap_32(x)
-#define htole16(x) __bswap_16(x)
-#endif
-
-static void memcpy_from_le32(void *dest, void *src, size_t len)
+static int DoMainCRCs(struct ImageHandle *ih)
 {
-#if __BYTE_ORDER == __LITTLE_ENDIAN
-	memcpy(dest, src, len);
-#else
+	int result=0;
 	int i;
-	for (i=0;i<len/4;i++)
-		((uint32_t *)dest)[i] = __bswap_32(((uint32_t *)src)[i]);
-#endif
+
+	for (i=0; i<3; i++)
+	{
+		if(Config.crc[i].r.start && Config.crc[i].r.end)
+		{
+			uint32_t nCalcCRC;
+			uint32_t nStart = Config.crc[i].r.start;
+			size_t nLen = Config.crc[i].r.end - Config.crc[i].r.start + 1;
+			uint32_t nCRCAddr = Config.crc[i].offset;
+			uint32_t nCRC;
+			uint32_t *p32;
+
+			if (nStart>=Config.base_address)
+			{
+				nStart -= Config.base_address;
+			}
+
+			if (nCRCAddr>=Config.base_address)
+			{
+				nCRCAddr -= Config.base_address;
+			}
+
+			nCalcCRC = crc32(0, ih->d.p+nStart, nLen);
+			/* possibly unaligned, so we cant do tricks wtih ih->d.u32 */
+			p32=(uint32_t *)(ih->d.p + nCRCAddr);
+			nCRC=le32toh(*p32);
+			printf("Adr: 0x%06X-0x%06X @0x%x CRC: 0x%08X  CalcCRC: 0x%08X",
+				Config.crc[i].r.start, Config.crc[i].r.end, nCRCAddr, nCalcCRC, nCRC);
+			if (nCalcCRC != nCRC)
+			{
+				if (Config.readonly)
+				{
+					printf("  ** NOT OK **\n");
+					result|=-1;
+				}
+				else
+				{
+					*p32=le32toh(nCalcCRC);
+					ErrorsCorrected++;
+					printf(" ** FIXED **\n");
+				}
+			}
+			else
+			{
+				printf("  CRC OK\n");
+			}
+
+		}
+	}
+	return result;
 }
 
-// Reads the individual checksum blocks that start at nStartBlk
-static int ReadChecksumBlks(struct ImageHandle *ih, uint32_t nStartBlk)
+
+
+//
+// Calculate the Bosch Motronic ME71 checksum for the given range
+//
+static uint32_t CalcChecksumBlk(struct ImageHandle *ih, const struct Range *r)
 {
-	// read the ROM byte by byte to make this code endian independant
-	// C16x processors are little endian
-	struct MultipointDescriptor desc;
-	uint32_t nCalcChksum;
+	uint32_t	nStartAddr=r->start;
+	uint32_t	nEndAddr=r->end;
+	uint32_t	nChecksum = 0, nIndex;
 
-	printf("<%x> ",nStartBlk);
-	fflush(stdout);
-
-	if(nStartBlk + sizeof(desc) >= ih->len)
+	// We are only reading the ROM. Therefore the start address must be
+	// higher than ROMSTART. Ignore addresses lower than this and
+	// remove the offset for addresses we're interested in.
+	if (nStartAddr >= Config.base_address)	//ROMSTART)
 	{
-		printf(" INVALID STARTBLK/LEN 0x%x/%zd ** NOT OK **\n", nStartBlk, ih->len);
-		return -1;	// Uncorrectable Error
+		nStartAddr -= Config.base_address;		//ROMSTART;
+		nEndAddr   -= Config.base_address;		//ROMSTART;
+	}
+	else
+	{
+		// The checksum block is outside our range
+		return 0xffffffffu;
 	}
 
-	// C16x processors are little endian
-	// copy from (le) buffer into our descriptor
-	memcpy_from_le32(&desc, ih->d.p+nStartBlk, sizeof(desc));
-
-	printf("Adr: 0x%04X-0x%04X ", desc.r.start, desc.r.end);
-	fflush(stdout);
-
-	if(desc.r.start==0xffffffff)
+	if(nStartAddr>=ih->len || nEndAddr>=ih->len)
 	{
-		printf(" END\n");
-		return 1;	// end of blks
+		// The checksum block is outside our range
+		printf(" INVALID STARTADDDR/ENDADDR 0x%x/0x%x\n", nStartAddr, nEndAddr);
+		return 0xffffffffu;
 	}
 
-	if(desc.r.start>=desc.r.end)
+	for(nIndex = nStartAddr/2; nIndex <= nEndAddr/2; nIndex++)
 	{
-		printf(" ** NOT OK **\n");
-		return -1;	// Uncorrectable Error
+		nChecksum+=le16toh(ih->d.u16[nIndex]);
 	}
-
-	printf("Chk: 0x%08X", desc.csum.v);
-
-	if(desc.csum.v != ~desc.csum.iv)
-	{
-		printf("  ~0x%08X ** INV NOT OK **\n", desc.csum.iv);
-		return -1;	// Uncorrectable Error
-	}
-
-	// calc checksum
-	nCalcChksum = CalcChecksumBlk(ih, &desc.r);
-
-	printf(" CalcChk: 0x%08X", nCalcChksum);
-	if(desc.csum.v != nCalcChksum)
-	{
-		printf(" ** NOT OK **\n");
-		return -1;
-	}
-
-	printf("  OK\n");
-	return 0;
+	return nChecksum;
 }
 
 //
 // Reads the main checksum for the whole ROM
 //
-static int ReadMainChecksum(struct ImageHandle *ih)
+static int DoMainChecksum(struct ImageHandle *ih)
 {
-	int result=0;
+	int fix=0;
 	struct Range r[2];
 	struct ChecksumPair csum;
 	uint32_t nCalcChksum;
@@ -442,101 +419,125 @@ static int ReadMainChecksum(struct ImageHandle *ih)
 	printf("Chksum : 0x%08X", csum.v);
 	if(csum.v != ~csum.iv)
 	{
-		printf(" ~Chksum : 0x%08X ** INV NOT OK\n", csum.iv);
-		return -1;
+		printf(" ~Chksum : 0x%08X INV NOT OK", csum.iv);
+		fix = 1;
 	}
 
 	printf(" CalcChk: 0x%08X", nCalcChksum);
-	if(csum.v == nCalcChksum)
+
+	if(csum.v != nCalcChksum) { fix = 1; }
+
+	if(!fix)
 	{
-		printf("  Main ROM OK\n");
+		printf("  Main ROM checksum OK\n");
+		return 0;
 	}
-	else
+
+	if(Config.readonly)
 	{
 		printf(" ** NOT OK **\n");
-		result = -1;
+		return -1;
 	}
-	return result;
+
+	if(csum.v != nCalcChksum)
+	{
+		csum.v = nCalcChksum;
+		ErrorsCorrected++;
+	}
+
+	if(csum.iv != ~nCalcChksum)
+	{
+		csum.iv = ~nCalcChksum;
+		ErrorsCorrected++;
+	}
+
+	memcpy_to_le32(ih->d.p+Config.main_checksum_final, &csum, sizeof(csum));
+
+	printf(" ** FIXED! **\n");
+
+	return 0;
 }
 
-//
-// Calculate the Bosch Motronic ME71 checksum for the given range
-//
-static uint32_t CalcChecksumBlk(struct ImageHandle *ih, const struct Range *r)
+// Reads the individual checksum blocks that start at nStartBlk
+static int DoChecksumBlks(struct ImageHandle *ih, uint32_t nStartBlk)
 {
-	uint32_t	nStartAddr=r->start;
-	uint32_t	nEndAddr=r->end;
-	uint32_t	nChecksum = 0, nIndex;
+	// read the ROM byte by byte to make this code endian independant
+	// C16x processors are little endian
+	struct MultipointDescriptor desc;
+	uint32_t nCalcChksum;
+	int fix=0;
 
-	// We are only reading the ROM. Therefore the start address must be
-	// higher than ROMSTART. Ignore addresses lower than this and
-	// remove the offset for addresses we're interested in.
-	if (nStartAddr >= Config.base_address)	//ROMSTART)
+	printf("<%x> ",nStartBlk);
+	fflush(stdout);
+
+	if(nStartBlk + sizeof(desc) >= ih->len)
 	{
-		nStartAddr -= Config.base_address;		//ROMSTART;
-		nEndAddr   -= Config.base_address;		//ROMSTART;
-	}
-	else
-	{
-		// The checksum block is outside our range
-		return 0xffffffffu;
+		printf(" INVALID STARTBLK/LEN 0x%x/%zd ** NOT OK **\n", nStartBlk, ih->len);
+		return -1;	// Uncorrectable Error
 	}
 
-	if(nStartAddr>=ih->len || nEndAddr>=ih->len)
+	// C16x processors are little endian
+	// copy from (le) buffer into our descriptor
+	memcpy_from_le32(&desc, ih->d.p+nStartBlk, sizeof(desc));
+
+	printf("Adr: 0x%04X-0x%04X ", desc.r.start, desc.r.end);
+	fflush(stdout);
+
+	if(desc.r.start==0xffffffff)
 	{
-		// The checksum block is outside our range
-		printf(" INVALID STARTADDDR/ENDADDR 0x%x/0x%x\n", nStartAddr, nEndAddr);
-		return 0xffffffffu;
+		printf(" END\n");
+		return 1;	// end of blks
 	}
 
-	for(nIndex = nStartAddr/2; nIndex <= nEndAddr/2; nIndex++)
+	if(desc.r.start>=desc.r.end)
 	{
-		nChecksum+=le16toh(ih->d.u16[nIndex]);
+		printf(" ** NOT OK **\n");
+		return -1;	// Uncorrectable Error
 	}
-	return nChecksum;
+
+	printf("Chk: 0x%08X", desc.csum.v);
+
+	if(desc.csum.v != ~desc.csum.iv)
+	{
+		printf("  ~0x%08X INV NOT OK", desc.csum.iv);
+		fix=1;
+	}
+
+	// calc checksum
+	nCalcChksum = CalcChecksumBlk(ih, &desc.r);
+
+	printf(" CalcChk: 0x%08X", nCalcChksum);
+	if(desc.csum.v != nCalcChksum) { fix=1; }
+
+	if (!fix)
+	{
+		printf("  OK\n");
+		return 0;
+	}
+
+	if (Config.readonly)
+	{
+		printf(" ** NOT OK **\n");
+		return -1;
+	}
+
+	if (desc.csum.v != nCalcChksum)
+	{
+		desc.csum.v = nCalcChksum;
+		ErrorsCorrected++;
+	}
+
+	if (desc.csum.iv != ~nCalcChksum)
+	{
+		desc.csum.iv = ~nCalcChksum;
+		ErrorsCorrected++;
+	}
+
+	memcpy_to_le32(ih->d.p+nStartBlk, &desc, sizeof(desc));
+
+	printf(" ** FIXED! **\n");
+
+	return 0;
 }
-
-static int ReadMainCRC(struct ImageHandle *ih)
-{
-	int result=0;
-	int i;
-	for (i=0; i<3; i++)
-	{
-		if(Config.crc[i].r.start && Config.crc[i].r.end)
-		{
-			uint32_t nCalcCRC;
-			uint32_t nStart = Config.crc[i].r.start;
-			size_t nLen = Config.crc[i].r.end - Config.crc[i].r.start + 1;
-			uint32_t nCRCAddr = Config.crc[i].offset;
-			uint32_t nCRC;
-
-			if (nStart>=Config.base_address)
-			{
-				nStart -= Config.base_address;
-			}
-
-			if (nCRCAddr>=Config.base_address)
-			{
-				nCRCAddr -= Config.base_address;
-			}
-
-			nCalcCRC = crc32(0, ih->d.p+nStart, nLen);
-			/* possibly unaligned, so we cant do tricks wtih ih->d.u32 */
-			nCRC=le32toh(*(uint32_t *)(ih->d.p + nCRCAddr));
-			printf("Adr: 0x%06X-0x%06X  CRC: 0x%08X  CalcCRC: 0x%08X",  Config.crc[i].r.start,   Config.crc[i].r.end, nCalcCRC, nCRC);
-			if (nCalcCRC == nCRC)
-			{
-				printf("  Main ROM OK\n");
-			}
-			else
-			{
-				printf("  ** NOT OK **\n");
-				result=-1;
-			}
-		}
-	}
-	return result;
-}
-
 
 // vim:ts=4:sw=4
