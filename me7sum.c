@@ -107,10 +107,6 @@ PropertyListItem romProps[] = {
 	{	GET_VALUE,  &Config.crc[2].r.start,			"ignition", "rom_crc3_start",			"0"},
 	{	GET_VALUE,  &Config.crc[2].r.end,			"ignition", "rom_crc3_end",				"0"},
 	{	GET_VALUE,  &Config.crc[2].offset,			"ignition", "rom_crc3",					"0"},
-	// get boot sector validation information
-	{	GET_VALUE,  &BootConfig.addr.start,			"ignition", "rom_boot_Startaddr",		"0"},
-	{	GET_VALUE,  &BootConfig.addr.end,			"ignition", "rom_boot_Endaddr",			"0"},
-	{	GET_VALUE,  &BootConfig.checksum,			"ignition", "rom_boot_Chksum",			"0"},
 	{ END_LIST,   0, "",""},
 };
 
@@ -161,7 +157,6 @@ int main(int argc, char **argv)
 {
 	int	iTemp;
 	int result;
-	uint32_t chksum;
 	struct ImageHandle ih;
 	struct section *osconfig;
 
@@ -197,28 +192,10 @@ int main(int argc, char **argv)
 	}
 
 	//
-	// Step #0 Show interesting ROM information
+	// Step #1 Show interesting ROM information
 	//
 	printf("\nShowing ROM info (typically ECUID Table)\n\n");
 	result = GetRomInfo(&ih, osconfig);
-
-	//
-	// Step #1 Verify Boot checksums (if requested)
-	//
-	if(BootConfig.addr.start && BootConfig.addr.end)
-	{
-		printf("\nReading Boot checksum...\n");
-		chksum = CalcChecksumBlk(&ih, &BootConfig.addr);
-		printf("Adr: 0x%06X-0x%06X  Chk: 0x%08X  CalcChk: 0x%08X", BootConfig.addr.start,  BootConfig.addr.end, BootConfig.checksum, chksum);
-		if(chksum == BootConfig.checksum)
-		{
-			printf("       OK\n");
-		}
-		else
-		{
-			printf("  ** NOT OK **\n");
-		}
-	}
 
 	//
 	// Step #2 Multi point checksums
@@ -240,7 +217,7 @@ int main(int argc, char **argv)
 	ReadMainChecksum(&ih);
 
 	//
-	// Step #6 Main ROM CRCs
+	// Step #4 Main ROM CRCs
 	//
 	printf("\nReading main ROM CRC...\n");
 	ReadMainCRC(&ih);
