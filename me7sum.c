@@ -311,9 +311,9 @@ static int DoMainCRCs(struct ImageHandle *ih)
 				nCRCAddr -= Config.base_address;
 			}
 
-			nCalcCRC = crc32(0, ih->d.p+nStart, nLen);
+			nCalcCRC = crc32(0, ih->d.u8+nStart, nLen);
 			/* possibly unaligned, so we cant do tricks wtih ih->d.u32 */
-			p32=(uint32_t *)(ih->d.p + nCRCAddr);
+			p32=(uint32_t *)(ih->d.u8 + nCRCAddr);
 			nCRC=le32toh(*p32);
 			printf("Adr: 0x%06X-0x%06X @0x%x CRC: 0x%08X  CalcCRC: 0x%08X",
 				Config.crc[i].r.start, Config.crc[i].r.end, nCRCAddr, nCalcCRC, nCRC);
@@ -397,7 +397,7 @@ static int DoMainChecksum(struct ImageHandle *ih)
 
 	// C16x processors are little endian
 	// copy from (le) buffer into our descriptor
-	memcpy_from_le32(r, ih->d.p+Config.main_checksum_offset, sizeof(r));
+	memcpy_from_le32(r, ih->d.u8+Config.main_checksum_offset, sizeof(r));
 
 	// block 1
 	nCalcChksum = CalcChecksumBlk(ih, r);
@@ -426,7 +426,7 @@ static int DoMainChecksum(struct ImageHandle *ih)
 
 	// C16x processors are little endian
 	// copy from (le) buffer
-	memcpy_from_le32(&csum, ih->d.p+Config.main_checksum_final, sizeof(csum));
+	memcpy_from_le32(&csum, ih->d.u8+Config.main_checksum_final, sizeof(csum));
 
 	printf("Chksum : 0x%08X", csum.v);
 	if(csum.v != ~csum.iv)
@@ -456,7 +456,7 @@ static int DoMainChecksum(struct ImageHandle *ih)
 	csum.v = nCalcChksum;
 	csum.iv = ~nCalcChksum;
 
-	memcpy_to_le32(ih->d.p+Config.main_checksum_final, &csum, sizeof(csum));
+	memcpy_to_le32(ih->d.u8+Config.main_checksum_final, &csum, sizeof(csum));
 
 	printf(" ** FIXED! **\n");
 	ErrorsCorrected+=errors;
@@ -483,7 +483,7 @@ static int DoChecksumBlks(struct ImageHandle *ih, uint32_t nStartBlk)
 
 	// C16x processors are little endian
 	// copy from (le) buffer into our descriptor
-	memcpy_from_le32(&desc, ih->d.p+nStartBlk, sizeof(desc));
+	memcpy_from_le32(&desc, ih->d.u8+nStartBlk, sizeof(desc));
 
 	printf("Adr: 0x%04X-0x%04X ", desc.r.start, desc.r.end);
 	fflush(stdout);
@@ -530,7 +530,7 @@ static int DoChecksumBlks(struct ImageHandle *ih, uint32_t nStartBlk)
 
 	desc.csum.v = nCalcChksum;
 	desc.csum.iv = ~nCalcChksum;
-	memcpy_to_le32(ih->d.p+nStartBlk, &desc, sizeof(desc));
+	memcpy_to_le32(ih->d.u8+nStartBlk, &desc, sizeof(desc));
 
 	printf(" ** FIXED! **\n");
 	ErrorsCorrected+=errors;

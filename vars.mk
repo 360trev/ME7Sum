@@ -6,7 +6,7 @@ CFLAGS  =-Wall -O3 -Werror
 
 UNAME := $(shell uname -s)
 ifeq ($(findstring CYGWIN,$(UNAME)),CYGWIN)
-CFLAGS += -D_WIN32_
+# CFLAGS += -D_WIN32_
 EXE_EXT := .exe
 else
 endif

@@ -3,13 +3,16 @@
 
 #include <string.h>
 #include <stdint.h>
+#ifdef _WIN32
+#else
 #include <endian.h>
+#endif
 
 struct ImageHandle {
 	union {
 //		uint32_t	*u32;
 		uint16_t	*u16;
-//		uint8_t		*u8;
+		uint8_t		*u8;
 		char		*s;
 		void		*p;
 	} d;
@@ -31,6 +34,8 @@ struct ImageHandle {
 // they're the same.
 #define memcpy_to_le32 memcpy_from_le32
 
+#ifdef _WIN32
+#else
 static inline void memcpy_from_le32(void *dest, void *src, size_t len)
 {
 #if __BYTE_ORDER == __LITTLE_ENDIAN
@@ -41,6 +46,7 @@ static inline void memcpy_from_le32(void *dest, void *src, size_t len)
 		((uint32_t *)dest)[i] = __bswap_32(((uint32_t *)src)[i]);
 #endif
 }
+#endif
 
 int mmap_file(struct ImageHandle *ih, const char *fname, int rw);
 int munmap_file(struct ImageHandle *ih);

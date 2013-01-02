@@ -1,7 +1,10 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#ifdef _WIN32
+#else
 #include <unistd.h>
+#endif
 #include "inifile.h"
 
 static char *trimstr(char *s, char *end)
@@ -303,7 +306,7 @@ void list_properties(int f, struct section *sect)
 struct section *read_properties(char *filename)
 {
 	FILE *f;
-	int size;
+	int size, siz;
 	int result;
 	char *props;
 	struct section *sect;
@@ -337,7 +340,7 @@ struct section *read_properties(char *filename)
 	}
 
 	// printf("read()..\n");
-	int siz = fread(props, 1,size, f);
+	siz = fread(props, 1,size, f);
 #if 1
 	if (siz != size)
 	{

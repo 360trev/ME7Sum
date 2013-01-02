@@ -1,16 +1,21 @@
 #include <fcntl.h>	/* open() */
+#ifdef _WIN32
+#include "os/mmap.h"
+#else
 #include <unistd.h>	/* close() */
-#include <sys/stat.h>
 #include <sys/mman.h>
+#endif
+#include <sys/stat.h>
 
 #include "utils.h"
 
 int mmap_file(struct ImageHandle *ih, const char *fname, int rw)
 {
 	int fd;
-	struct stat buf = {};
+	struct stat buf;
 	void *p;
 
+	memset(&buf, 0, sizeof(buf));
 	memset(ih, 0, sizeof(*ih));
 
 	if((fd = open(fname, rw ? O_RDWR : O_RDONLY)) < 0)
