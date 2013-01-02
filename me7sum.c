@@ -520,10 +520,20 @@ static int ReadMainCRC(struct ImageHandle *ih)
 		if(Config.crc[i].r.start && Config.crc[i].r.end)
 		{
 			uint32_t nCalcCRC;
-			uint32_t nStart = Config.crc[i].r.start - Config.base_address;
+			uint32_t nStart = Config.crc[i].r.start;
 			size_t nLen = Config.crc[i].r.end - Config.crc[i].r.start + 1;
-			uint32_t nCRCAddr = Config.crc[i].offset - Config.base_address;
+			uint32_t nCRCAddr = Config.crc[i].offset;
 			uint32_t nCRC;
+
+			if (nStart>=Config.base_address)
+			{
+				nStart -= Config.base_address;
+			}
+
+			if (nCRCAddr>=Config.base_address)
+			{
+				nCRCAddr -= Config.base_address;
+			}
 
 			nCalcCRC = crc32(0, ih->d.p+nStart, nLen);
 			/* possibly unaligned, so we cant do tricks wtih ih->d.u32 */
