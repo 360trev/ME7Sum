@@ -79,7 +79,7 @@ struct rom_config {
 		struct Range r;
 		uint32_t	offset;
 	} crc[3];								/* 3 CRC blocks to check */
-} Config = { .multipoint_block_len=sizeof(struct MultipointDescriptor) };
+} Config;
 
 // boot sector validation (optional, generally already in multipoint blocks above) */
 struct rom_boot_config {
@@ -93,24 +93,24 @@ struct rom_boot_config {
 //
 PropertyListItem romProps[] = {
 	// get rom region information
-	{	GET_VALUE,  &Config.base_address,			"ignition", "rom_firmware_start",		},
-	{	GET_VALUE,  &Config.multipoint_block_start,	"ignition", "rom_checksum_block_start",	},
-	{	GET_VALUE,  &Config.multipoint_block_len,	"ignition", "rom_checksum_block_len",	},
-	{	GET_VALUE,  &Config.main_checksum_offset,	"ignition", "rom_checksum_offset",		},
-	{	GET_VALUE,  &Config.main_checksum_final,	"ignition", "rom_checksum_final",		},
-	{	GET_VALUE,  &Config.crc[0].r.start,			"ignition", "rom_crc1_start",			},
-	{	GET_VALUE,  &Config.crc[0].r.end,			"ignition", "rom_crc1_end",				},
-	{	GET_VALUE,  &Config.crc[0].offset,			"ignition", "rom_crc1",					},
-	{	GET_VALUE,  &Config.crc[1].r.start,			"ignition", "rom_crc2_start",			},
-	{	GET_VALUE,  &Config.crc[1].r.end,			"ignition", "rom_crc2_end",				},
-	{	GET_VALUE,  &Config.crc[1].offset,			"ignition", "rom_crc2",					},
-	{	GET_VALUE,  &Config.crc[2].r.start,			"ignition", "rom_crc3_start",			},
-	{	GET_VALUE,  &Config.crc[2].r.end,			"ignition", "rom_crc3_end",				},
-	{	GET_VALUE,  &Config.crc[2].offset,			"ignition", "rom_crc3",					},
+	{	GET_VALUE,  &Config.base_address,			"ignition", "rom_firmware_start",		"0"},
+	{	GET_VALUE,  &Config.multipoint_block_start,	"ignition", "rom_checksum_block_start",	"0"},
+	{	GET_VALUE,  &Config.multipoint_block_len,	"ignition", "rom_checksum_block_len",	"0x10"},
+	{	GET_VALUE,  &Config.main_checksum_offset,	"ignition", "rom_checksum_offset",		"0"},
+	{	GET_VALUE,  &Config.main_checksum_final,	"ignition", "rom_checksum_final",		"0"},
+	{	GET_VALUE,  &Config.crc[0].r.start,			"ignition", "rom_crc1_start",			"0"},
+	{	GET_VALUE,  &Config.crc[0].r.end,			"ignition", "rom_crc1_end",				"0"},
+	{	GET_VALUE,  &Config.crc[0].offset,			"ignition", "rom_crc1",					"0"},
+	{	GET_VALUE,  &Config.crc[1].r.start,			"ignition", "rom_crc2_start",			"0"},
+	{	GET_VALUE,  &Config.crc[1].r.end,			"ignition", "rom_crc2_end",				"0"},
+	{	GET_VALUE,  &Config.crc[1].offset,			"ignition", "rom_crc2",					"0"},
+	{	GET_VALUE,  &Config.crc[2].r.start,			"ignition", "rom_crc3_start",			"0"},
+	{	GET_VALUE,  &Config.crc[2].r.end,			"ignition", "rom_crc3_end",				"0"},
+	{	GET_VALUE,  &Config.crc[2].offset,			"ignition", "rom_crc3",					"0"},
 	// get boot sector validation information
-	{	GET_VALUE,  &BootConfig.addr.start,			"ignition", "rom_boot_Startaddr",		},
-	{	GET_VALUE,  &BootConfig.addr.end,			"ignition", "rom_boot_Endaddr",			},
-	{	GET_VALUE,  &BootConfig.checksum,			"ignition", "rom_boot_Chksum",			},
+	{	GET_VALUE,  &BootConfig.addr.start,			"ignition", "rom_boot_Startaddr",		"0"},
+	{	GET_VALUE,  &BootConfig.addr.end,			"ignition", "rom_boot_Endaddr",			"0"},
+	{	GET_VALUE,  &BootConfig.checksum,			"ignition", "rom_boot_Chksum",			"0"},
 	{ END_LIST,   0, "",""},
 };
 
@@ -209,7 +209,7 @@ int main(int argc, char **argv)
 	{
 		printf("\nReading Boot checksum...\n");
 		chksum = CalcChecksumBlk(&ih, &BootConfig.addr);
-		printf("Adr: 0x%06X-0x%06X  Chksum: 0x%08X  CalcChk: 0x%08X", BootConfig.addr.start,  BootConfig.addr.end, BootConfig.checksum, chksum);
+		printf("Adr: 0x%06X-0x%06X  Chk: 0x%08X  CalcChk: 0x%08X", BootConfig.addr.start,  BootConfig.addr.end, BootConfig.checksum, chksum);
 		if(chksum == BootConfig.checksum)
 		{
 			printf("       OK\n");
@@ -352,7 +352,6 @@ static int ReadChecksumBlks(struct ImageHandle *ih, uint32_t nStartBlk)
 	// C16x processors are little endian
 	struct MultipointDescriptor desc;
 	uint32_t nCalcChksum;
-	uint32_t nCalcInvChksum;
 
 	printf("<%x> ",nStartBlk);
 	fflush(stdout);
@@ -382,20 +381,18 @@ static int ReadChecksumBlks(struct ImageHandle *ih, uint32_t nStartBlk)
 		return -1;	// Uncorrectable Error
 	}
 
-	printf("Sum: 0x%08X  ~0x%08X", desc.csum.v, desc.csum.iv);
+	printf("Chk: 0x%08X", desc.csum.v);
 
 	if(desc.csum.v != ~desc.csum.iv)
 	{
-		printf(" ** NOT OK **\n");
+		printf("  ~0x%08X ** INV NOT OK **\n", desc.csum.iv);
 		return -1;	// Uncorrectable Error
 	}
 
 	// calc checksum
 	nCalcChksum = CalcChecksumBlk(ih, &desc.r);
-	// inverted checksum
-	nCalcInvChksum = ~nCalcChksum;
 
-	printf(" == Calc: 0x%08X ~0x%08X", nCalcChksum, nCalcInvChksum);
+	printf(" CalcChk: 0x%08X", nCalcChksum);
 	if(desc.csum.v != nCalcChksum)
 	{
 		printf(" ** NOT OK **\n");
@@ -453,9 +450,15 @@ static int ReadMainChecksum(struct ImageHandle *ih)
 	// copy from (le) buffer
 	memcpy_from_le32(&csum, ih->d.p+Config.main_checksum_final, sizeof(csum));
 
-	printf("Chksum : 0x%08X ~Chksum : 0x%08X\n", csum.v, csum.iv);
-	printf("CalcChk: 0x%08X ~CalcChk: 0x%08X", nCalcChksum, ~nCalcChksum);
-	if(csum.v == ~csum.iv && csum.v == nCalcChksum)
+	printf("Chksum : 0x%08X", csum.v);
+	if(csum.v != ~csum.iv)
+	{
+		printf(" ~Chksum : 0x%08X ** INV NOT OK\n", csum.iv);
+		return -1;
+	}
+
+	printf(" CalcChk: 0x%08X", nCalcChksum);
+	if(csum.v == nCalcChksum)
 	{
 		printf("  Main ROM OK\n");
 	}
