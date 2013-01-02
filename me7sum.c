@@ -311,6 +311,18 @@ static int GetRomInfo(struct ImageHandle *ih, struct section *osconfig)
 	return 0;
 }
 
+#if __BYTE_ORDER == __LITTLE_ENDIAN
+#define le32toh(x) (x)
+#define le16toh(x) (x)
+#define htole32(x) (x)
+#define htole16(x) (x)
+#else
+#define le32toh(x) __bswap_32(x)
+#define htole16(x) __bswap_16(x)
+#define le32toh(x) __bswap_32(x)
+#define htole16(x) __bswap_16(x)
+#endif
+
 static void memcpy_from_le32(void *dest, void *src, size_t len)
 {
 #if __BYTE_ORDER == __LITTLE_ENDIAN
@@ -479,11 +491,7 @@ static uint32_t CalcChecksumBlk(struct ImageHandle *ih, const struct Range *r)
 
 	for(nIndex = nStartAddr/2; nIndex <= nEndAddr/2; nIndex++)
 	{
-#if __BYTE_ORDER == __LITTLE_ENDIAN
-		nChecksum+=ih->d.u16[nIndex];
-#else
-		nChecksum+=__bswap_16(ih->d.u16[nIndex]);
-#endif
+		nChecksum+=le16toh(ih->d.u16[nIndex]);
 	}
 	return nChecksum;
 }
@@ -514,11 +522,7 @@ static int ReadMainCRC(struct ImageHandle *ih)
 
 			nCalcCRC = crc32(0, ih->d.p+nStart, nLen);
 			/* possibly unaligned, so we cant do tricks wtih ih->d.u32 */
-#if __BYTE_ORDER == __LITTLE_ENDIAN
-			nCRC= *(uint32_t *)(ih->d.p + nCRCAddr);
-#else
-			nCRC=__bswap_32(*(uint32_t *)(ih->d.p + nCRCAddr));
-#endif
+			nCRC=le32toh(*(uint32_t *)(ih->d.p + nCRCAddr));
 			printf("Adr: 0x%06X-0x%06X  CRC: 0x%08X  CalcCRC: 0x%08X",  Config.crc[i].r.start,   Config.crc[i].r.end, nCalcCRC, nCRC);
 			if (nCalcCRC == nCRC)
 			{
