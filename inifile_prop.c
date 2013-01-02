@@ -38,7 +38,7 @@ int process_properties_list(struct section *osconfig, PropertyListItem *ci)
 		if(type == GET_VALUE) {			// process list entry for GET_VALUE type
 			pAdr  = ci[i].attr_adr;
 			if(pAdr != 0) {
-				*pAdr = get_property_value(osconfig, ci[i].attr_path, ci[i].attr_name,	NULL);
+				*pAdr = get_property_value(osconfig, ci[i].attr_path, ci[i].attr_name,	ci[i].attr_default);
 				printf("get_property_value( %s, %s)\n",ci[i].attr_path,ci[i].attr_name);
 				if(*pAdr == 0) { 
 					errCount++;

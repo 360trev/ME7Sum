@@ -18,6 +18,7 @@ typedef struct PropertyListItem {
 	uint32_t *attr_adr;
 	char attr_path[ATTR_MAX_PATH];
 	char attr_name[ATTR_MAX_NAME];
+	char attr_default[ATTR_MAX_NAME];
 } PropertyListItem;
 
 uint32_t get_property_value(struct section *sections, char *sectname, char *propname, char *def);
