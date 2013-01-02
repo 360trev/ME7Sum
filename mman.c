@@ -1,3 +1,4 @@
+// for win32 only - adds MMAP functions
 #ifdef _WIN32
 #include <windows.h>
 #include <errno.h>
