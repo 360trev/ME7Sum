@@ -288,7 +288,11 @@ static int GetRomInfo(struct ImageHandle *ih, struct section *osconfig)
 
 		if(ptr_length == 0)
 		{
-			// no length to source. skip it...
+			// zero length, skip
+		}
+		else if(ptr_offset+ptr_length >= ih->len)
+		{
+			printf("%s = INVALID OFFSET/LEN 0x%x/%d\n",ptr_label, ptr_offset, ptr_length);
 		}
 		else
 		{
@@ -338,6 +342,12 @@ static uint32_t ReadChecksumBlks(struct ImageHandle *ih, uint32_t nStartBlk)
 
 	printf("<%x> ",nStartBlk);
 	fflush(stdout);
+
+	if(nStartBlk + sizeof(desc) >= ih->len)
+	{
+		printf(" INVALID STARTBLK/LEN 0x%x/%zd ** NOT OK **\n", nStartBlk, ih->len);
+		return -1;	// Uncorrectable Error
+	}
 
 	memcpy_from_le32(&desc, ih->d.p+nStartBlk, sizeof(desc));
 
@@ -451,6 +461,13 @@ static uint32_t CalcChecksumBlk(struct ImageHandle *ih, const struct Range *r)
 	else
 	{
 		// The checksum block is outside our range
+		return 0xffffffffu;
+	}
+
+	if(nStartAddr>=ih->len || nEndAddr>=ih->len)
+	{
+		// The checksum block is outside our range
+		printf(" INVALID STARTADDDR/ENDADDR 0x%x/0x%x\n", nStartAddr, nEndAddr);
 		return 0xffffffffu;
 	}
 
