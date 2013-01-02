@@ -149,6 +149,12 @@ int main(int argc, char **argv)
 		goto out;
 	}
 
+	// sanity check: validate firmware file is at least 512kbytes length before proceeding.
+	if(ih.len < (1024*512)) {
+		printf("File too small. Are you sure this is a firmware dump?\n");
+		goto out;
+	}
+
 	//
 	// Step #0 Show interesting ROM information
 	//
