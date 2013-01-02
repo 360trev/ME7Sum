@@ -1,10 +1,10 @@
 @echo off
 SET VSVER=10.0
 
-IF DEFINED %PROGRAMFILES(X86)% (
-  GOTO amd64
-) ELSE (
+IF "%PROGRAMFILES(X86)%"=="" (
   GOTO x86
+) ELSE (
+  GOTO amd64
 )
 
 :amd64
