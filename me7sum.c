@@ -39,6 +39,7 @@
 #include <sys/mman.h>
 
 #include "inifile_prop.h"
+#include "crc32.h"
 
 // structures
 struct Range {
@@ -53,34 +54,30 @@ struct ChecksumPair {
 
 struct ImageHandle {
 	union {
-		uint32_t	*u32;
+//		uint32_t	*u32;
 		uint16_t	*u16;
-		uint8_t		*u8;
+//		uint8_t		*u8;
 		char		*s;
 		void		*p;
 	} d;
 	size_t	len;
 };
 
-// descriptors
 struct MultipointDescriptor {
-	struct Range			r;
+	struct Range		r;
 	struct ChecksumPair	csum;
 };
 
-struct MainDescriptor {
-	struct Range r[2];
-};
-
-
 // main firmware checksum validation
 struct rom_config {
-	uint32_t  base_address;				/* rom base address */
-	uint32_t  multipoint_block_start;	/* start of multipoint block descriptors */
-	uint32_t  multipoint_block_len;		/* size of descriptors */
-	uint32_t  main_checksum_offset;		/* two start/end pairs, one at offset, other at offset+8 */
-	uint32_t  main_checksum_final;		/* two 4 byte checksum (one inv) for two blocks conctatenated above) */
-} Config;
+	uint32_t	base_address;				/* rom base address */
+	uint32_t	multipoint_block_start;	/* start of multipoint block descriptors */
+	uint32_t	multipoint_block_len;		/* size of descriptors */
+	uint32_t	main_checksum_offset;		/* two start/end pairs, one at offset, other at offset+8 */
+	uint32_t	main_checksum_final;		/* two 4 byte checksum (one inv) for two blocks conctatenated above) */
+	struct Range crc_range[3];
+	uint32_t	crc[3];
+} Config = { .multipoint_block_len=sizeof(struct MultipointDescriptor) };
 
 // boot sector validation (optional, generally already in multipoint blocks above) */
 struct rom_boot_config {
@@ -99,6 +96,15 @@ PropertyListItem romProps[] = {
 	{	GET_VALUE,  &Config.multipoint_block_len,	"ignition", "rom_checksum_block_len",	},
 	{	GET_VALUE,  &Config.main_checksum_offset,	"ignition", "rom_checksum_offset",		},
 	{	GET_VALUE,  &Config.main_checksum_final,	"ignition", "rom_checksum_final",		},
+	{	GET_VALUE,  &Config.crc_range[0].start,		"ignition", "rom_crc1_start",			},
+	{	GET_VALUE,  &Config.crc_range[0].end,		"ignition", "rom_crc1_end",				},
+	{	GET_VALUE,  &Config.crc[0],					"ignition", "rom_crc1",					},
+	{	GET_VALUE,  &Config.crc_range[1].start,		"ignition", "rom_crc2_start",			},
+	{	GET_VALUE,  &Config.crc_range[1].end,		"ignition", "rom_crc2_end",				},
+	{	GET_VALUE,  &Config.crc[1],					"ignition", "rom_crc2",					},
+	{	GET_VALUE,  &Config.crc_range[2].start,		"ignition", "rom_crc3_start",			},
+	{	GET_VALUE,  &Config.crc_range[2].end,		"ignition", "rom_crc3_end",				},
+	{	GET_VALUE,  &Config.crc[2],					"ignition", "rom_crc3",					},
 	// get boot sector validation information
 	{	GET_VALUE,  &BootConfig.addr.start,			"ignition", "rom_boot_Startaddr",		},
 	{	GET_VALUE,  &BootConfig.addr.end,			"ignition", "rom_boot_Endaddr",			},
@@ -108,8 +114,9 @@ PropertyListItem romProps[] = {
 
 static int GetRomInfo(struct ImageHandle *ih, struct section *osconfig);
 static uint32_t CalcChecksumBlk(struct ImageHandle *ih, const struct Range *);
-static uint32_t ReadChecksumBlks(struct ImageHandle *ih, uint32_t nStartBlk);
-static void ReadMainChecksum(struct ImageHandle *ih);
+static int ReadChecksumBlks(struct ImageHandle *ih, uint32_t nStartBlk);
+static int ReadMainChecksum(struct ImageHandle *ih);
+static int ReadMainCRC(struct ImageHandle *ih);
 
 /*
  * main()
@@ -200,10 +207,10 @@ int main(int argc, char **argv)
 	{
 		printf("\nReading Boot checksum...\n");
 		chksum = CalcChecksumBlk(&ih, &BootConfig.addr);
-		printf("Start: 0x%04X  End: 0x%04X  Chksum: 0x%08X  CalcChk: 0x%08X", BootConfig.addr.start,  BootConfig.addr.end, BootConfig.checksum, chksum);
+		printf("Adr: 0x%06X-0x%06X  Chksum: 0x%08X  CalcChk: 0x%08X", BootConfig.addr.start,  BootConfig.addr.end, BootConfig.checksum, chksum);
 		if(chksum == BootConfig.checksum)
 		{
-			printf("       OK     \n");
+			printf("       OK\n");
 		}
 		else
 		{
@@ -230,6 +237,11 @@ int main(int argc, char **argv)
 	printf("\nReading main ROM checksum...\n");
 	ReadMainChecksum(&ih);
 
+	//
+	// Step #6 Main ROM CRCs
+	//
+	printf("\nReading main ROM CRC...\n");
+	ReadMainCRC(&ih);
 out:
 	// close the file
 	if(ih.d.p != 0) { munmap(ih.d.p, ih.len); }
@@ -332,7 +344,7 @@ static void memcpy_from_le32(void *dest, void *src, size_t len)
 }
 
 // Reads the individual checksum blocks that start at nStartBlk
-static uint32_t ReadChecksumBlks(struct ImageHandle *ih, uint32_t nStartBlk)
+static int ReadChecksumBlks(struct ImageHandle *ih, uint32_t nStartBlk)
 {
 	// read the ROM byte by byte to make this code endian independant
 	// C16x processors are little endian
@@ -349,6 +361,8 @@ static uint32_t ReadChecksumBlks(struct ImageHandle *ih, uint32_t nStartBlk)
 		return -1;	// Uncorrectable Error
 	}
 
+	// C16x processors are little endian
+	// copy from (le) buffer into our descriptor
 	memcpy_from_le32(&desc, ih->d.p+nStartBlk, sizeof(desc));
 
 	printf("Adr: 0x%04X-0x%04X ", desc.r.start, desc.r.end);
@@ -393,40 +407,48 @@ static uint32_t ReadChecksumBlks(struct ImageHandle *ih, uint32_t nStartBlk)
 //
 // Reads the main checksum for the whole ROM
 //
-static void ReadMainChecksum(struct ImageHandle *ih)
+static int ReadMainChecksum(struct ImageHandle *ih)
 {
-	struct MainDescriptor desc;
+	int result=0;
+	struct Range r[2];
 	struct ChecksumPair csum;
 	uint32_t nCalcChksum;
 	uint32_t nCalcChksum2;
 
-	printf("Seeking to ROM Checksum Block Offset Table 0x%X [16 bytes table]\n\n",Config.main_checksum_offset);
+	printf("Seeking to ROM Checksum Block Offset Table 0x%X [16 bytes table]\n\n",
+		Config.main_checksum_offset);
 
 	// C16x processors are little endian
-	memcpy_from_le32(&desc, ih->d.p+Config.main_checksum_offset, sizeof(desc));
+	// copy from (le) buffer into our descriptor
+	memcpy_from_le32(r, ih->d.p+Config.main_checksum_offset, sizeof(r));
 
 	// block 1
-	nCalcChksum = CalcChecksumBlk(ih, desc.r);
-	printf("Start: 0x%04X  End: 0x%04X  Block #1 - nCalcChksum=0x%04x\n", desc.r[0].start, desc.r[0].end,nCalcChksum);
+	nCalcChksum = CalcChecksumBlk(ih, r);
+	printf("Adr: 0x%06X-0x%06X  Block #1 - nCalcChksum=0x%04x\n",
+		r[0].start, r[0].end, nCalcChksum);
 
-	if (desc.r[0].end + 1 != desc.r[1].start)
+	if (r[0].end + 1 != r[1].start)
 	{
-		uint32_t skip=desc.r[0].end+1;
+		uint32_t skip=r[0].end+1;
 		if (skip >= Config.base_address)
 		{
 			skip-=Config.base_address;
 		}
-		printf("Start: 0x%04X  End: 0x%04X - MAP REGION SKIPPED, NOT PART OF MAIN CHECKSUM\n", desc.r[0].end+1, desc.r[1].start-1);
+		printf("Adr: 0x%06X-0x%06X - MAP REGION SKIPPED, NOT PART OF MAIN CHECKSUM\n",
+			r[0].end+1, r[1].start-1);
 	}
 
 	// block 2
-	nCalcChksum2= CalcChecksumBlk(ih, desc.r+1);
-	printf("Start: 0x%04X  End: 0x%04X  Block #2 - nCalcChksum=0x%04x\n", desc.r[1].start, desc.r[1].end,nCalcChksum2);
+	nCalcChksum2= CalcChecksumBlk(ih, r+1);
+	printf("Adr: 0x%06X-0x%06X  Block #2 - nCalcChksum=0x%04x\n",
+		r[1].start, r[1].end,nCalcChksum2);
 
 	nCalcChksum += nCalcChksum2;
-	printf("\nRead in stored MAIN ROM checksum block @ 0x%X [8 bytes]\n",Config.main_checksum_final);
+	printf("\nRead in stored MAIN ROM checksum block @ 0x%X [8 bytes]\n",
+		Config.main_checksum_final);
 
-	//Read in the stored checksum --- GOOD
+	// C16x processors are little endian
+	// copy from (le) buffer
 	memcpy_from_le32(&csum, ih->d.p+Config.main_checksum_final, sizeof(csum));
 
 	printf("Chksum : 0x%08X ~Chksum : 0x%08X\n", csum.v, csum.iv);
@@ -438,7 +460,9 @@ static void ReadMainChecksum(struct ImageHandle *ih)
 	else
 	{
 		printf(" ** NOT OK **\n");
+		result = -1;
 	}
+	return result;
 }
 
 //
@@ -481,5 +505,42 @@ static uint32_t CalcChecksumBlk(struct ImageHandle *ih, const struct Range *r)
 	}
 	return nChecksum;
 }
+
+static int ReadMainCRC(struct ImageHandle *ih)
+{
+	int result=0;
+	int i;
+	for (i=0; i<3; i++)
+	{
+		if(Config.crc_range[i].start && Config.crc_range[i].end)
+		{
+			uint32_t nCalcCRC;
+			uint32_t nStart = Config.crc_range[i].start - Config.base_address;
+			size_t nLen = Config.crc_range[i].end - Config.crc_range[i].start + 1;
+			uint32_t nCRCAddr = Config.crc[i] - Config.base_address;
+			uint32_t nCRC;
+
+			nCalcCRC = crc32(0, ih->d.p+nStart, nLen);
+			/* possibly unaligned, so we cant do tricks wtih ih->d.u32 */
+#if __BYTE_ORDER == __LITTLE_ENDIAN
+			nCRC= *(uint32_t *)(ih->d.p + nCRCAddr);
+#else
+			nCRC=__bswap_32(*(uint32_t *)(ih->d.p + nCRCAddr));
+#endif
+			printf("Adr: 0x%06X-0x%06X  CRC: 0x%08X  CalcCRC: 0x%08X",  Config.crc_range[i].start,   Config.crc_range[i].end, nCalcCRC, nCRC);
+			if (nCalcCRC == nCRC)
+			{
+				printf("  Main ROM OK\n");
+			}
+			else
+			{
+				printf("  ** NOT OK **\n");
+				result=-1;
+			}
+		}
+	}
+	return result;
+}
+
 
 // vim:ts=4:sw=4

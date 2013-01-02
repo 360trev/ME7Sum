@@ -7,5 +7,5 @@ LDFLAGS=-Llib_ini
 
 include makefile.common
 
-me7sum.o: me7sum.c inifile_prop.h lib_ini/inifile.h
+me7sum.o: me7sum.c crc32.h inifile_prop.h lib_ini/inifile.h
 inifile_prop.o: inifile_prop.h lib_ini/inifile.h
