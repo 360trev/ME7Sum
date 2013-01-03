@@ -104,16 +104,36 @@ int save_file(const char *filename, const uint8_t *filebuf, size_t filelen)
 	return(0);
 }
 
-int search_image(const struct ImageHandle *ih, int start, const void *needle, int len, int align)
+static int memcmp_mask(const void *ptr1, const void *ptr2, const void *mask, size_t len)
+{
+    const uint8_t *p1 = (const uint8_t*)ptr1;
+    const uint8_t *p2 = (const uint8_t*)ptr2;
+    const uint8_t *m = (const uint8_t*)mask;
+
+    while(len--)
+    {
+	int diff = m?(*p2 & *m)-(*p1 & *m):*p2-*p1;
+	if (diff) return diff>0?1:-1;
+	p1++;
+	p2++;
+	if (m) m++;
+    }
+    return 0;
+}
+
+/* returns -1 on failure, start if found, start+align if not found */
+int search_image(const struct ImageHandle *ih, int start, const void *needle, const void *mask, int len, int align)
 {
     if (start<0) return -1;
 
     for (;start+len<ih->len;start+=align)
     {
-	if(memcmp(ih->d.u8+start, needle, len)==0)
+	if(memcmp_mask(ih->d.u8+start, needle, mask, len)==0)
 	{
+	    // printf("got one at 0x%x\n", start);
 	    return start;
 	}
     }
+    // printf("failed, returning 0x%x\n", start);
     return start;
 }

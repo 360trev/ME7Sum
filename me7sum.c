@@ -471,17 +471,26 @@ static uint32_t CalcChecksumBlk(struct ImageHandle *ih, const struct Range *r)
 static int FindMainRomOffset(struct ImageHandle *ih)
 {
 	int i, found=0, offset=0;
-	uint32_t needle[2];
+	uint32_t needle[4];
+	uint32_t mask[4];
 
 	printf("Searching for main ROM checksum...\n");
 
 	needle[0]=htole32(Config.base_address);
-	needle[1]=htole32(Config.base_address+0xfbff);
-	for(i=0;i+8<ih->len;i+=2)
+	needle[1]=htole32(Config.base_address+0x0f000);
+	needle[2]=htole32(Config.base_address+0x20000);
+	needle[3]=htole32(Config.base_address+0x7ffff);
+	mask[0]=htole32(0xffffffff);
+	mask[1]=htole32(0xfffff000);
+	mask[2]=htole32(0xffffffff);
+	mask[3]=htole32(0xfff7ffff);
+	for(i=0;i+sizeof(needle)<ih->len;i+=2)
 	{
-		i=search_image(ih, i, needle, sizeof(needle), 2);
-		if (i+8<ih->len)
+		i=search_image(ih, i, needle, mask, sizeof(needle), 2);
+		if (i<0) break;
+		if (i+sizeof(needle)<ih->len)
 		{
+			// printf("Found possible main at 0x%x\n", i);
 			offset=i;
 			found++;
 		}
@@ -604,7 +613,8 @@ static int FindChecksumBlks(struct ImageHandle *ih)
 
 	for(i=0;i+Config.multipoint_block_len<ih->len;i+=2)
 	{
-		i=search_image(ih, i, needle, sizeof(needle), 2);
+		i=search_image(ih, i, needle, NULL, sizeof(needle), 2);
+		if (i<0) break;
 		if (i+Config.multipoint_block_len<ih->len)
 		{
 			struct MultipointDescriptor *desc =
