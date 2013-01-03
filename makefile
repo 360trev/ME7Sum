@@ -1,8 +1,11 @@
-include vars.mk
+# FOR MSVSS nmake only
 
-EXE     =me7sum$(EXE_EXT)
-LIBS    =ini
-SUBDIRS =inifile
-LDFLAGS=-Linifile
+TARGET = me7sum.exe
+SOURCES = crc32.c inifile_prop.c me7sum.c utils.c inifile/inifile.c os/pgetopt.c
 
-include makefile.common
+all: $(TARGET)
+$(TARGET):$(SOURCES)
+	cl /EHsc /Fe$@ /Tc $(CFLAGS) $(SOURCES)
+
+clean:
+	del $(TARGET) *.obj
