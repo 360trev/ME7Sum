@@ -408,10 +408,14 @@ static int FindMainCRCOffsets(struct ImageHandle *ih)
 		if (i<0) break;
 		if (i+sizeof(needle)<ih->len)
 		{
-			// printf("Found possible crc #%d at 0x%x\n", found+1, i);
+			uint16_t low=le16toh(ih->d.u16[i/2+1]);
+			uint16_t high=le16toh(ih->d.u16[i/2+3]);
+			uint32_t addr=(high<<16) | low;
+
+			// printf("Found possible crc #%d at 0x%x (from 0x%x)\n", found+1, addr, i);
 			if (found<3)
 			{
-				offset[found]=i;
+				offset[found]=addr;
 			}
 			found++;
 		}
@@ -421,12 +425,8 @@ static int FindMainCRCOffsets(struct ImageHandle *ih)
 	{
 		for (i=0;i<found;i++)
 		{
-			uint32_t off=offset[i];
-			uint16_t low=le16toh(ih->d.u16[off/2+1]);
-			uint16_t high=le16toh(ih->d.u16[off/2+3]);
-			uint32_t addr=(high<<16) | low;
-			printf("Found CRC #%d at 0x%x (decoded from 0x%x)\n", i+1, addr, off);
-			Config.crc[i].offset=addr;
+			printf("Found CRC #%d at 0x%x\n", i+1, offset[i]);
+			Config.crc[i].offset=offset[i];
 		}
 		return 0;
 	}
