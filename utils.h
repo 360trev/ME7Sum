@@ -25,10 +25,6 @@
 
 #include <string.h>
 #include <stdint.h>
-#ifdef _WIN32
-#else
-#include <endian.h>
-#endif
 
 struct ImageHandle {
 	union {
