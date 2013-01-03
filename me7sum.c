@@ -31,9 +31,13 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#include <ctype.h>	/* isprint() */
 
 #if _MSC_VER
 #define snprintf _snprintf
+#include "os/getopt.h"
+#else
+#include <getopt.h>
 #endif
 
 #include "inifile_prop.h"
@@ -110,45 +114,82 @@ static int DoChecksumBlk(struct ImageHandle *ih, uint32_t nStartBlk);
  *
  */
 
+static void usage(const char *prog)
+{
+	printf("Usage: %s [-i <config.ini>] <inrom.bin> [outrom.bin]\n", prog);
+	exit(-1);
+}
+
 int main(int argc, char **argv)
 {
 	int	iTemp;
 	int result;
 	int num_of;
+	char *prog=argv[0];
+	char *inifile=NULL;
+	char *input=NULL;
+	char *output=NULL;
+	char c;
 	struct ImageHandle ih;
-	struct section *osconfig;
+	struct section *osconfig=NULL;
 
 	// information about the tool
 	printf("ME7Tool [ Management tool for Bosch ME7.x firmwares]\n");
 	printf("Inspiration from Andy Whittaker's tools and information\n");
 	printf("Written by 360trev and nyet [BSD License Open Source]. \n\n");
 
-	if(argc < 3 || argc > 4)
+	opterr=0;
+
+	while ((c = getopt(argc, argv, "i:")) != -1)
 	{
-		printf("Usage: %s <config.ini> <inrom.bin> [outrom.bin]\n",argv[0]);
-		return -1;
+		switch (c)
+		{
+			case 'i':
+				inifile=optarg;
+				break;
+			case '?':
+				if (optopt == 'i')
+					fprintf(stderr, "Option -%c requires an argument.\n", optopt);
+				else if (isprint(optopt))
+					fprintf(stderr, "Unknown option '-%c'.\n", optopt);
+				// break; // fallthrough
+			default:
+				usage(prog);
+				return -1;
+		}
 	}
 
-	if(argc==3)
-	{
+	argc-=optind;
+	argv+=optind;
+
+	if (argc==0 || argc>2)
+		usage(prog);
+
+	input = argv[0];
+
+	if (argc>1)
+		output = argv[1];
+	else
 		Config.readonly=1;
-	}
 
-	printf("Attemping to open firmware config file %s\n",argv[1]);
-	// load properties file into memory
-	osconfig = read_properties(argv[1]);
-	if(osconfig == NULL)
+	if (inifile)
 	{
-		printf("failed to open config file\n");
-		return -1;
+		printf("Attemping to open firmware config file %s\n",inifile);
+		// load properties file into memory
+		osconfig = read_properties(inifile);
+		if(osconfig == NULL)
+		{
+			printf("failed to open config file\n");
+			return -1;
+		}
 	}
 
 	// get rom region information from config file (see defined property list)
 	result = process_properties_list(osconfig, romProps);
 
 	// open the firmware file
-	printf("\nAttemping to open firmware file %s\n",argv[2]);
-	if (iload_file(&ih, argv[2], 0))
+	printf("\nAttemping to open firmware file %s\n",input);
+	if (iload_file(&ih, input, 0))
 	{
 		printf("failed to open firmware file\n");
 		goto out;
@@ -230,9 +271,9 @@ int main(int argc, char **argv)
 		printf("Skipping Multipoint Checksum Block... undefined\n");
 	}
 
-	if(argc>3 && ErrorsCorrected > 0) {
+	if(output && ErrorsCorrected > 0) {
 		// write crc corrected file out
-		save_file(argv[3],ih.d.p,ih.len);
+		save_file(output,ih.d.p,ih.len);
 	}
 
 out:
