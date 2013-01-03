@@ -100,8 +100,10 @@ PropertyListItem romProps[] = {
 
 static int GetRomInfo(struct ImageHandle *ih, struct section *osconfig,	uint32_t num_of);
 static int DoMainCRCs(struct ImageHandle *ih);
-static int DoMainChecksum(struct ImageHandle *ih);
-static int DoChecksumBlks(struct ImageHandle *ih, uint32_t nStartBlk);
+static int FindMainRomOffsets(struct ImageHandle *ih);
+static int DoMainChecksum(struct ImageHandle *ih, uint32_t nOffset, uint32_t nCsumAddr);
+static int FindChecksumBlks(struct ImageHandle *ih);
+static int DoChecksumBlk(struct ImageHandle *ih, uint32_t nStartBlk);
 
 /*
  * main()
@@ -188,20 +190,45 @@ int main(int argc, char **argv)
 	// Step #2 Main ROM checksums
 	//
 	printf("\nStep #2: Reading main ROM checksum...\n");
-	DoMainChecksum(&ih);
+	if(Config.main_checksum_offset==0)
+	{
+		FindMainRomOffsets(&ih);
+	}
+
+	if (Config.main_checksum_offset && Config.main_checksum_final)
+	{
+		DoMainChecksum(&ih, Config.main_checksum_offset, Config.main_checksum_final);
+	}
+	else
+	{
+		printf("Skipping main ROM checksum... undefined\n");
+	}
 
 	//
 	// Step #3 Multi point checksums
 	//
 	printf("\nStep #3: Reading Multipoint Checksum Block...\n");
-	for(iTemp=0; iTemp<64; iTemp++)
+
+	if(Config.multipoint_block_start==0)
 	{
-		printf("%2d) ",iTemp+1);
-		fflush(stdout);
-		result = DoChecksumBlks(&ih, Config.multipoint_block_start+(Config.multipoint_block_len*iTemp));
-		if (result == 1) { break; } // end of blocks;
+		FindChecksumBlks(&ih);
 	}
-	printf("[%d x <16> = %d bytes]\n", iTemp, iTemp*16);
+
+	if(Config.multipoint_block_start)
+	{
+		for(iTemp=0; iTemp<64; iTemp++)
+		{
+			printf("%2d) ",iTemp+1);
+			fflush(stdout);
+			result = DoChecksumBlk(&ih, Config.multipoint_block_start+(Config.multipoint_block_len*iTemp));
+			if (result == 1) { break; } // end of blocks;
+		}
+		printf("[%d x <16> = %d bytes]\n", iTemp, iTemp*16);
+	}
+	else
+	{
+		printf("Skipping Multipoint Checksum Block... undefined\n");
+	}
 
 	if(argc>3 && ErrorsCorrected > 0) {
 		// write crc corrected file out
@@ -395,10 +422,49 @@ static uint32_t CalcChecksumBlk(struct ImageHandle *ih, const struct Range *r)
 	return nChecksum;
 }
 
+static int FindMainRomOffsets(struct ImageHandle *ih)
+{
+	int found=0, offset=0;
+	uint32_t needle[2];
+
+	printf("Searching for main ROM checksum...\n");
+
+	needle[0]=htole32(Config.base_address);
+	needle[1]=htole32(Config.base_address+0xfbff);
+	int i;
+	for(i=0;i+8<ih->len;i+=2)
+	{
+		i=search_image(ih, i, needle, sizeof(needle), 2);
+		if (i+8<ih->len)
+		{
+			offset=i;
+			found++;
+		}
+	}
+
+	if (found==1)
+	{
+		struct ChecksumPair *csum;
+		printf("Found main at 0x%x\n", offset);
+		Config.main_checksum_offset=offset;
+
+		offset=ih->len-0x20;
+		csum = (struct ChecksumPair *)(ih->d.p+offset);
+
+		if (csum->v == ~csum->iv)
+		{
+			printf("Found csum at 0x%x\n", offset);
+			Config.main_checksum_final=offset;
+			return 0;
+		}
+	}
+	return -1;
+}
+
 //
 // Reads the main checksum for the whole ROM
 //
-static int DoMainChecksum(struct ImageHandle *ih)
+static int DoMainChecksum(struct ImageHandle *ih, uint32_t nOffset, uint32_t nCsumAddr)
 {
 	int errors=0;
 	struct Range r[2];
@@ -411,7 +477,7 @@ static int DoMainChecksum(struct ImageHandle *ih)
 
 	// C16x processors are little endian
 	// copy from (le) buffer into our descriptor
-	memcpy_from_le32(r, ih->d.u8+Config.main_checksum_offset, sizeof(r));
+	memcpy_from_le32(r, ih->d.u8+nOffset, sizeof(r));
 
 	// block 1
 	nCalcChksum = CalcChecksumBlk(ih, r);
@@ -440,7 +506,7 @@ static int DoMainChecksum(struct ImageHandle *ih)
 
 	// C16x processors are little endian
 	// copy from (le) buffer
-	memcpy_from_le32(&csum, ih->d.u8+Config.main_checksum_final, sizeof(csum));
+	memcpy_from_le32(&csum, ih->d.u8+nCsumAddr, sizeof(csum));
 
 	printf("Chksum : 0x%08X", csum.v);
 	if(csum.v != ~csum.iv)
@@ -470,15 +536,56 @@ static int DoMainChecksum(struct ImageHandle *ih)
 	csum.v = nCalcChksum;
 	csum.iv = ~nCalcChksum;
 
-	memcpy_to_le32(ih->d.u8+Config.main_checksum_final, &csum, sizeof(csum));
+	memcpy_to_le32(ih->d.u8+nCsumAddr, &csum, sizeof(csum));
 
 	printf(" ** FIXED! **\n");
 	ErrorsCorrected+=errors;
 	return 0;
 }
 
+static int FindChecksumBlks(struct ImageHandle *ih)
+{
+	int i, found=0, offset=0;
+	uint32_t needle[2];
+
+	needle[0]=htole32(Config.base_address);
+	needle[1]=htole32(Config.base_address+0x3fff);
+
+	for(i=0;i+Config.multipoint_block_len<ih->len;i+=2)
+	{
+		i=search_image(ih, i, needle, sizeof(needle), 2);
+		if (i+Config.multipoint_block_len<ih->len)
+		{
+			struct MultipointDescriptor *desc =
+				(struct MultipointDescriptor *)(ih->d.p+i);
+
+			if (desc->csum.v==~desc->csum.iv)
+			{
+				offset=i;
+				found++;
+			}
+		}
+	}
+
+	if (found==1)
+	{
+		/* test next block to make sure it looks reasonable */
+		struct MultipointDescriptor *desc =
+			(struct MultipointDescriptor *)(ih->d.p+offset+Config.multipoint_block_len);
+
+		if (desc->csum.v==~desc->csum.iv)
+		{
+			printf("Found descriptor at 0x%x\n", offset);
+			Config.multipoint_block_start=offset;
+			return 0;
+		}
+	}
+
+	return -1;
+}
+
 // Reads the individual checksum blocks that start at nStartBlk
-static int DoChecksumBlks(struct ImageHandle *ih, uint32_t nStartBlk)
+static int DoChecksumBlk(struct ImageHandle *ih, uint32_t nStartBlk)
 {
 	// read the ROM byte by byte to make this code endian independant
 	// C16x processors are little endian

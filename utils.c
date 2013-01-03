@@ -103,3 +103,17 @@ int save_file(const char *filename, const uint8_t *filebuf, size_t filelen)
 
 	return(0);
 }
+
+int search_image(const struct ImageHandle *ih, int start, const void *needle, int len, int align)
+{
+    if (start<0) return -1;
+
+    for (;start+len<ih->len;start+=align)
+    {
+	if(memcmp(ih->d.u8+start, needle, len)==0)
+	{
+	    return start;
+	}
+    }
+    return start;
+}
