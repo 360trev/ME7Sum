@@ -103,10 +103,15 @@ PropertyListItem romProps[] = {
 };
 
 static int GetRomInfo(struct ImageHandle *ih, struct section *osconfig,	uint32_t num_of);
+
+static int FindMainCRCBlks(struct ImageHandle *ih);
+static int FindMainCRCOffsets(struct ImageHandle *ih);
 static int DoMainCRCs(struct ImageHandle *ih);
+
 static int FindMainRomOffset(struct ImageHandle *ih);
 static int FindMainRomFinal(struct ImageHandle *ih);
 static int DoMainChecksum(struct ImageHandle *ih, uint32_t nOffset, uint32_t nCsumAddr);
+
 static int FindChecksumBlks(struct ImageHandle *ih);
 static int DoChecksumBlk(struct ImageHandle *ih, uint32_t nStartBlk);
 
@@ -218,9 +223,20 @@ int main(int argc, char **argv)
 	//
 	// Step #1 Main ROM CRCs if specified
 	//
-	if(Config.crc[0].r.start && Config.crc[0].r.end)
+	printf("\nStep #1: Reading main ROM CRC...\n");
+
+	if(Config.crc[0].r.start==0 && Config.crc[0].r.end==0)
 	{
-		printf("\nStep #1: Reading main ROM CRC...\n");
+		FindMainCRCBlks(&ih);
+	}
+
+	if(Config.crc[0].offset==0)
+	{
+		FindMainCRCOffsets(&ih);
+	}
+
+	if(Config.crc[0].r.start && Config.crc[0].r.end && Config.crc[0].offset)
+	{
 		DoMainCRCs(&ih);
 	}
 	else
@@ -236,6 +252,7 @@ int main(int argc, char **argv)
 	{
 		FindMainRomOffset(&ih);
 	}
+
 	if(Config.main_checksum_final==0)
 	{
 		FindMainRomFinal(&ih);
@@ -372,6 +389,50 @@ static int GetRomInfo(struct ImageHandle *ih, struct section *osconfig,	uint32_t
 	return 0;
 }
 
+static int FindMainCRCBlks(struct ImageHandle *ih)
+{
+	return -1;
+}
+
+static int FindMainCRCOffsets(struct ImageHandle *ih)
+{
+	int i, found=0, offset[3];
+	uint8_t needle[12] = {0xE6, 0xF4, 0x00, 0x00, 0xE6, 0xF5, 0x00, 0x00, 0xDA, 0x00, 0xD8, 0x7E};
+	uint8_t   mask[12] = {0xff, 0xff, 0x00, 0x00, 0xff, 0xff, 0x00, 0x00, 0xff, 0xff, 0xff, 0xff};
+
+	printf("Searching for main ROM CRC offsets...\n");
+
+	for(i=0;i+sizeof(needle)<ih->len;i+=2)
+	{
+		i=search_image(ih, i, needle, mask, sizeof(needle), 2);
+		if (i<0) break;
+		if (i+sizeof(needle)<ih->len)
+		{
+			// printf("Found possible crc #%d at 0x%x\n", found+1, i);
+			if (found<3)
+			{
+				offset[found]=i;
+			}
+			found++;
+		}
+	}
+
+	if (found>0 && found<4)
+	{
+		for (i=0;i<found;i++)
+		{
+			uint32_t off=offset[i];
+			uint16_t low=le16toh(ih->d.u16[off/2+1]);
+			uint16_t high=le16toh(ih->d.u16[off/2+3]);
+			uint32_t addr=(high<<16) | low;
+			printf("Found CRC #%d at 0x%x (decoded from 0x%x)\n", i+1, addr, off);
+			Config.crc[i].offset=addr;
+		}
+		return 0;
+	}
+	return -1;
+}
+
 static int DoMainCRCs(struct ImageHandle *ih)
 {
 	int result=0;
@@ -379,7 +440,7 @@ static int DoMainCRCs(struct ImageHandle *ih)
 
 	for (i=0; i<3; i++)
 	{
-		if(Config.crc[i].r.start && Config.crc[i].r.end)
+		if(Config.crc[i].r.start && Config.crc[i].r.end && Config.crc[i].offset)
 		{
 			uint32_t nCalcCRC;
 			uint32_t nStart = Config.crc[i].r.start;
