@@ -104,7 +104,8 @@ PropertyListItem romProps[] = {
 
 static int GetRomInfo(struct ImageHandle *ih, struct section *osconfig,	uint32_t num_of);
 static int DoMainCRCs(struct ImageHandle *ih);
-static int FindMainRomOffsets(struct ImageHandle *ih);
+static int FindMainRomOffset(struct ImageHandle *ih);
+static int FindMainRomFinal(struct ImageHandle *ih);
 static int DoMainChecksum(struct ImageHandle *ih, uint32_t nOffset, uint32_t nCsumAddr);
 static int FindChecksumBlks(struct ImageHandle *ih);
 static int DoChecksumBlk(struct ImageHandle *ih, uint32_t nStartBlk);
@@ -233,7 +234,11 @@ int main(int argc, char **argv)
 	printf("\nStep #2: Reading main ROM checksum...\n");
 	if(Config.main_checksum_offset==0)
 	{
-		FindMainRomOffsets(&ih);
+		FindMainRomOffset(&ih);
+	}
+	if(Config.main_checksum_final==0)
+	{
+		FindMainRomFinal(&ih);
 	}
 
 	if (Config.main_checksum_offset && Config.main_checksum_final)
@@ -463,7 +468,7 @@ static uint32_t CalcChecksumBlk(struct ImageHandle *ih, const struct Range *r)
 	return nChecksum;
 }
 
-static int FindMainRomOffsets(struct ImageHandle *ih)
+static int FindMainRomOffset(struct ImageHandle *ih)
 {
 	int i, found=0, offset=0;
 	uint32_t needle[2];
@@ -484,20 +489,26 @@ static int FindMainRomOffsets(struct ImageHandle *ih)
 
 	if (found==1)
 	{
-		struct ChecksumPair *csum;
 		printf("Found main at 0x%x\n", offset);
 		Config.main_checksum_offset=offset;
-
-		offset=ih->len-0x20;
-		csum = (struct ChecksumPair *)(ih->d.u8+offset);
-
-		if (csum->v == ~csum->iv)
-		{
-			printf("Found csum at 0x%x\n", offset);
-			Config.main_checksum_final=offset;
-			return 0;
-		}
+		return 0;
 	}
+
+	return -1;
+}
+
+static int FindMainRomFinal(struct ImageHandle *ih)
+{
+	int offset=ih->len-0x20;
+	struct ChecksumPair *csum = (struct ChecksumPair *)(ih->d.u8+offset);
+
+	if (csum->v == ~csum->iv)
+	{
+		printf("Found csum at 0x%x\n", offset);
+		Config.main_checksum_final=offset;
+		return 0;
+	}
+
 	return -1;
 }
 
