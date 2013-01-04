@@ -2,6 +2,5 @@
 *.o
 *.obj
 *.a
-*.bin
 *.exe
 me7sum
