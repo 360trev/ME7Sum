@@ -1,7 +1,7 @@
 This project is under BSD open source license. Its on the most unrestrictive
 freeware license possible. No warranty implied or given.
 
-Its a tool written in C for management of Bosch ME7 firmware dumps.
+It is a tool written in C for management of Bosch ME7 firmware dumps.
 
 It should generally autodetect checksum/CRC blocks, but is known not to work with:
 
@@ -24,7 +24,7 @@ BUILDING:
 
 Under unix or cygwin, "make" should work.
 
-If not using GNUmake, try "make -f GNUMakefile"
+If not using GNUmake, try "make -f GNUmakefile"
 
 Under Windows MSVSS/nmake , type "prep.cmd" then "nmake"
 
