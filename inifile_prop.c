@@ -11,14 +11,14 @@ uint32_t get_property_value(struct section *sections, char *sectname, char *prop
 
 	// get default value string (if exists)
 	if(def != NULL) {
-		defval=strtoul(def, NULL, 16);
+		defval=strtoul(def, NULL, 0);
 	}
 	// lookup property
 	pStr = get_property(sections, sectname, propname, NULL);
 	// success?
 	if(pStr != NULL) {
 		// scan property value
-		val=strtoul(pStr, NULL, 16);
+		val=strtoul(pStr, NULL, 0);
 		free(pStr);
 	} else {
 		val = defval;
