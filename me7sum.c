@@ -325,7 +325,7 @@ int main(int argc, char **argv)
 
 	if(ErrorsUncorrectable)
 	{
-		printf("\nABORTING! %d uncorrectable error(s)!\n", ErrorsUncorrectable);
+		printf("\n*** ABORTING! %d uncorrectable error(s) in %s! ***\n", ErrorsUncorrectable, input);
 		return -1;
 	}
 
@@ -343,7 +343,7 @@ out:
 	// free config
 	if(osconfig != 0) { free_properties(osconfig); }
 
-	printf("\nDone!\n%d/%d errors corrected!\n", ErrorsCorrected, ErrorsFound);
+	printf("\n*** DONE! %d/%d errors corrected in %s! ***\n", ErrorsCorrected, ErrorsFound, input);
 
 	return 0;
 }
