@@ -67,11 +67,6 @@ struct MultipointDescriptor {
 	struct ChecksumPair     csum;
 };
 
-// globals
-
-static int ErrorsFound = 0;
-static int ErrorsCorrected = 0;
-
 #define MAX_CRC_BLKS 4
 // main firmware checksum validation
 struct rom_config {
@@ -85,7 +80,14 @@ struct rom_config {
 		struct Range r;
 		uint32_t	offset;
 	} crc[MAX_CRC_BLKS+1];					/* 0/4 is pre-region (for kbox and other) Up to 5 CRC blocks (total) to check */
-} Config;
+};
+
+// globals
+static struct rom_config Config;
+
+static int ErrorsUncorrectable = 0;
+static int ErrorsFound = 0;
+static int ErrorsCorrected = 0;
 
 //
 // List of configurable properties to read from config file into our programme...
@@ -260,8 +262,8 @@ int main(int argc, char **argv)
 	}
 	else
 	{
-		printf("\nStep #1: ERROR! Skipping main ROM CRCs... undefined\n");
-		ErrorsFound++;
+		printf("\nStep #1: ERROR! Skipping main ROM CRCs... UNDEFINED\n");
+		ErrorsUncorrectable++;
 	}
 
 	DEBUG_EXIT_CRC;
@@ -286,8 +288,8 @@ int main(int argc, char **argv)
 	}
 	else
 	{
-		printf("Step #2: ERROR! Skipping main ROM checksum... undefined\n");
-		ErrorsFound++;
+		printf("Step #2: ERROR! Skipping main ROM checksum... UNDEFINED\n");
+		ErrorsUncorrectable++;
 	}
 
 	DEBUG_EXIT_MAIN;
@@ -315,11 +317,17 @@ int main(int argc, char **argv)
 	}
 	else
 	{
-		printf("Step #3: ERROR! Skipping Multipoint Checksum Block... undefined\n");
-		ErrorsFound++;
+		printf("Step #3: ERROR! Skipping Multipoint Checksum Block... UNDEFINED\n");
+		ErrorsUncorrectable++;
 	}
 
 	DEBUG_EXIT_MULTIPOINT;
+
+	if(ErrorsUncorrectable)
+	{
+		printf("\nABORTING! %d uncorrectable error(s)!\n", ErrorsUncorrectable);
+		return -1;
+	}
 
 	if(output && ErrorsCorrected > 0)
 	{
@@ -489,8 +497,8 @@ static int FindMainCRCPreBlk(const struct ImageHandle *ih)
 		DEBUG_CRC("Too many matches (%d). CRC block start find failed\n", found);
 	}
 
-	printf("FAIL\n");
-	return -1;
+	printf("skipped\n");
+	return 0;
 }
 
 static int FindMainCRCBlks(const struct ImageHandle *ih)
@@ -805,7 +813,7 @@ static int DoMainChecksum(struct ImageHandle *ih, uint32_t nOffset, uint32_t nCs
 	    r[0].start==0xffffffff || r[1].start==0xffffffff)
 	{
 		printf(" ERROR! BAD MAIN CHECKSUM DESCRIPTOR(s)\n");
-		ErrorsFound++;
+		ErrorsUncorrectable++;
 		return -1;
 	}
 
@@ -927,7 +935,7 @@ static int DoChecksumBlk(struct ImageHandle *ih, uint32_t nStartBlk)
 	if(nStartBlk + sizeof(desc) >= ih->len)
 	{
 		printf(" ERROR! INVALID STARTBLK/LEN 0x%x/%ld ** NOT OK **\n", nStartBlk, (long int)ih->len);
-		ErrorsFound++;
+		ErrorsUncorrectable++;
 		return -1;	// Uncorrectable Error
 	}
 
@@ -936,7 +944,7 @@ static int DoChecksumBlk(struct ImageHandle *ih, uint32_t nStartBlk)
 	memcpy_from_le32(&desc, ih->d.u8+nStartBlk, sizeof(desc));
 	if (NormalizeRange(ih, &desc.r))
 	{
-		ErrorsFound++;
+		ErrorsUncorrectable++;
 		return -1;
 	}
 
