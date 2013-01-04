@@ -111,7 +111,7 @@ static PropertyListItem romProps[] = {
 	{ END_LIST,   0, "",""},
 };
 
-static int GetRomInfo(struct ImageHandle *ih, struct section *osconfig,	uint32_t num_of);
+static int GetRomInfo(const struct ImageHandle *ih, struct section *osconfig, uint32_t num_of);
 
 static int FindMainCRCPreBlk(const struct ImageHandle *ih);
 static int FindMainCRCBlks(const struct ImageHandle *ih);
@@ -257,7 +257,8 @@ int main(int argc, char **argv)
 	}
 	else
 	{
-		printf("\nStep #1: Skipping main ROM CRCs... undefined\n");
+		printf("\nStep #1: ERROR! Skipping main ROM CRCs... undefined\n");
+		ErrorsFound++;
 	}
 
 #ifdef DEBUG_CRC_MATCHING
@@ -284,7 +285,8 @@ int main(int argc, char **argv)
 	}
 	else
 	{
-		printf("Skipping main ROM checksum... undefined\n");
+		printf("Step #2: ERROR! Skipping main ROM checksum... undefined\n");
+		ErrorsFound++;
 	}
 
 #ifdef DEBUG_MAIN_MATCHING
@@ -314,7 +316,8 @@ int main(int argc, char **argv)
 	}
 	else
 	{
-		printf("Skipping Multipoint Checksum Block... undefined\n");
+		printf("Step #3: ERROR! Skipping Multipoint Checksum Block... undefined\n");
+		ErrorsFound++;
 	}
 
 #ifdef DEBUG_MULTIPOINT_MATCHING
@@ -345,7 +348,7 @@ out:
  * - uses config file to parse rom data and show interesting information about this rom dump
  */
 
-static int GetRomInfo(struct ImageHandle *ih, struct section *osconfig,	uint32_t num_of)
+static int GetRomInfo(const struct ImageHandle *ih, struct section *osconfig,	uint32_t num_of)
 {
 	char str_data[1024];
 	char type_str[256];
@@ -447,7 +450,7 @@ static int FindMainCRCData(const struct ImageHandle *ih, const char *what,
 #endif
 				if(found<offset_len)
 				{
-					offset[found]=addr;
+					offset[found]=addr-Config.base_address;
 					last_where = i;
 				}
 				found++;
@@ -614,16 +617,6 @@ static int DoMainCRCs(struct ImageHandle *ih)
 			uint32_t nCalcCRC;
 			uint32_t *p32;
 
-			if (nStart>=Config.base_address)
-			{
-				nStart -= Config.base_address;
-			}
-
-			if (nCRCAddr>=Config.base_address)
-			{
-				nCRCAddr -= Config.base_address;
-			}
-
 			nCalcCRC = crc32(nCalcCRCSeed, ih->d.u8+nStart, nLen);
 
 			printf("%d: Adr: 0x%06X-0x%06X", i, Config.crc[i].r.start, Config.crc[i].r.end);
@@ -668,45 +661,6 @@ static int DoMainCRCs(struct ImageHandle *ih)
 		}
 	}
 	return result;
-}
-
-
-
-//
-// Calculate the Bosch Motronic ME71 checksum for the given range
-//
-static uint32_t CalcChecksumBlk(struct ImageHandle *ih, const struct Range *r)
-{
-	uint32_t	nStartAddr=r->start;
-	uint32_t	nEndAddr=r->end;
-	uint32_t	nChecksum = 0, nIndex;
-
-	// We are only reading the ROM. Therefore the start address must be
-	// higher than ROMSTART. Ignore addresses lower than this and
-	// remove the offset for addresses we're interested in.
-	if (nStartAddr >= Config.base_address)	//ROMSTART)
-	{
-		nStartAddr -= Config.base_address;		//ROMSTART;
-		nEndAddr   -= Config.base_address;		//ROMSTART;
-	}
-	else
-	{
-		// The checksum block is outside our range
-		return 0xffffffffu;
-	}
-
-	if(nStartAddr>=ih->len || nEndAddr>=ih->len)
-	{
-		// The checksum block is outside our range
-		printf(" INVALID STARTADDDR/ENDADDR 0x%x/0x%x\n", nStartAddr, nEndAddr);
-		return 0xffffffffu;
-	}
-
-	for(nIndex = nStartAddr/2; nIndex <= nEndAddr/2; nIndex++)
-	{
-		nChecksum+=le16toh(ih->d.u16[nIndex]);
-	}
-	return nChecksum;
 }
 
 static int FindMainRomOffset(const struct ImageHandle *ih)
@@ -769,6 +723,57 @@ static int FindMainRomFinal(const struct ImageHandle *ih)
 	return -1;
 }
 
+static int NormalizeRange(const struct ImageHandle *ih, struct Range *r)
+{
+	// special case: leave end markers alone
+	if (r->start==0xffffffff && r->end==0xffffffff) return 0;
+
+	// We are only reading the ROM. Therefore the start address must be
+	// higher than ROMSTART. Ignore addresses lower than this and
+	// remove the offset for addresses we're interested in.
+	if (r->start < Config.base_address || r->end < Config.base_address)	//ROMSTART)
+	{
+		// The checksum block is outside our range
+		printf(" ERROR: INVALID STARTADDDR/ENDADDR 0x%x/0x%x is less than base address 0x%x\n",
+			r->start, r->end, Config.base_address);
+		return -1;
+	}
+
+	r->start -= Config.base_address;		//ROMSTART;
+	r->end   -= Config.base_address;		//ROMSTART;
+
+	if(r->start>r->end)
+	{
+		// start is after end!
+		printf(" ERROR: INVALID STARTADDDR/ENDADDR: 0x%x>0x%x\n", r->start, r->end);
+		return -1;
+	}
+
+	if(r->start>=ih->len || r->end>=ih->len)
+	{
+		// The checksum block is outside our range
+		printf(" ERROR: INVALID STARTADDDR/ENDADDR: 0x%x/0x%x is past 0x%zx\n", r->start, r->end, ih->len);
+		return -1;
+	}
+
+	return 0;
+}
+
+//
+// Calculate the Bosch Motronic ME71 checksum for the given range
+//
+static uint32_t CalcChecksumBlk(const struct ImageHandle *ih, const struct Range *r)
+{
+	uint32_t	nChecksum = 0, nIndex;
+
+	for(nIndex = r->start/2; nIndex <= r->end/2; nIndex++)
+	{
+		nChecksum+=le16toh(ih->d.u16[nIndex]);
+	}
+
+	return nChecksum;
+}
+
 //
 // Reads the main checksum for the whole ROM
 //
@@ -787,6 +792,13 @@ static int DoMainChecksum(struct ImageHandle *ih, uint32_t nOffset, uint32_t nCs
 	// copy from (le) buffer into our descriptor
 	memcpy_from_le32(r, ih->d.u8+nOffset, sizeof(r));
 
+	if (NormalizeRange(ih, r) || NormalizeRange(ih, r+1) ||
+	    r[0].start==0xffffffff || r[1].start==0xffffffff) {
+		printf("ERROR! BAD MAIN CHECKSUM DESCRIPTOR(s)\n");
+		ErrorsFound++;
+		return -1;
+	}
+
 	// block 1
 	nCalcChksum = CalcChecksumBlk(ih, r);
 	printf("Adr: 0x%06X-0x%06X  Block #1 - nCalcChksum=0x%04x\n",
@@ -794,11 +806,6 @@ static int DoMainChecksum(struct ImageHandle *ih, uint32_t nOffset, uint32_t nCs
 
 	if (r[0].end + 1 != r[1].start)
 	{
-		uint32_t skip=r[0].end+1;
-		if (skip >= Config.base_address)
-		{
-			skip-=Config.base_address;
-		}
 		printf("Adr: 0x%06X-0x%06X  MAP REGION SKIPPED, NOT PART OF MAIN CHECKSUM\n",
 			r[0].end+1, r[1].start-1);
 	}
@@ -909,27 +916,26 @@ static int DoChecksumBlk(struct ImageHandle *ih, uint32_t nStartBlk)
 
 	if(nStartBlk + sizeof(desc) >= ih->len)
 	{
-		printf(" INVALID STARTBLK/LEN 0x%x/%ld ** NOT OK **\n", nStartBlk, (long int)ih->len);
+		printf(" ERROR! INVALID STARTBLK/LEN 0x%x/%ld ** NOT OK **\n", nStartBlk, (long int)ih->len);
+		ErrorsFound++;
 		return -1;	// Uncorrectable Error
 	}
 
 	// C16x processors are little endian
 	// copy from (le) buffer into our descriptor
 	memcpy_from_le32(&desc, ih->d.u8+nStartBlk, sizeof(desc));
+	if (NormalizeRange(ih, &desc.r)) {
+		ErrorsFound++;
+		return -1;
+	}
 
-	printf("Adr: 0x%04X-0x%04X ", desc.r.start, desc.r.end);
+	printf("Adr: 0x%06X-0x%06X ", desc.r.start, desc.r.end);
 	fflush(stdout);
 
 	if(desc.r.start==0xffffffff)
 	{
 		printf(" END\n");
 		return 1;	// end of blks
-	}
-
-	if(desc.r.start>=desc.r.end)
-	{
-		printf(" ** NOT OK **\n");
-		return -1;	// Uncorrectable Error
 	}
 
 	printf("Chk: 0x%08X", desc.csum.v);
