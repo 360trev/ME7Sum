@@ -237,6 +237,8 @@ int main(int argc, char **argv)
 		printf("\nStep #0: Skipping ROM info... undefined\n");
 	}
 
+	DEBUG_EXIT_ROM;
+
 	//
 	// Step #1 Main ROM CRCs if specified
 	//
@@ -358,7 +360,7 @@ out:
 
 static int GetRomInfo(const struct ImageHandle *ih, struct section *osconfig,	uint32_t num_of)
 {
-	char str_data[1024];
+	char str_data[1025];	// Leave room for null termination
 	char type_str[256];
 	char visible_str[256];
 	char label_str[256];
@@ -413,7 +415,7 @@ static int GetRomInfo(const struct ImageHandle *ih, struct section *osconfig,	ui
 			DEBUG_ROM("%s = %d\n",length_str,  ptr_length);
 
 			/* snprintf null terminates for us if string is too long :) */
-			snprintf(str_data, ptr_length, "%s", ih->d.s+ptr_offset);
+			snprintf(str_data, ptr_length+1, "%s", ih->d.s+ptr_offset);	// Leave room for null termination
 			if(! strncmp("true",(char *)ptr_visible,4))
 			{
 				printf("%-20.20s '%s'\n",ptr_label, str_data);
