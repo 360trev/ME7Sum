@@ -83,4 +83,6 @@ uint8_t *load_file(const char *filename, size_t *filelen);
 
 int search_image(const struct ImageHandle *ih, int start, const void *needle, const void *mask, int len, int align);
 
+void hexdump(uint8_t *buf, int len, const char *end);
+
 #endif

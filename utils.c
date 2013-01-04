@@ -137,3 +137,9 @@ int search_image(const struct ImageHandle *ih, int start, const void *needle, co
     // printf("failed, returning 0x%x\n", start);
     return start;
 }
+
+void hexdump(uint8_t *buf, int len, const char *end)
+{
+    while(len--) printf("%02x%s", *buf++, len?" ":"");
+    printf("%s", end);
+}
