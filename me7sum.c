@@ -100,6 +100,8 @@ static PropertyListItem romProps[] = {
 	{	GET_VALUE,  &Config.multipoint_block_len,	"ignition", "rom_checksum_block_len",	"0x10"},
 	{	GET_VALUE,  &Config.main_checksum_offset,	"ignition", "rom_checksum_offset",		"0"},
 	{	GET_VALUE,  &Config.main_checksum_final,	"ignition", "rom_checksum_final",		"0"},
+	{	GET_VALUE,  &Config.crc[0].r.start,			"ignition", "rom_crc0_start",			"0"},
+	{	GET_VALUE,  &Config.crc[0].r.end,			"ignition", "rom_crc0_end",				"0"},
 	{	GET_VALUE,  &Config.crc[1].r.start,			"ignition", "rom_crc1_start",			"0"},
 	{	GET_VALUE,  &Config.crc[1].r.end,			"ignition", "rom_crc1_end",				"0"},
 	{	GET_VALUE,  &Config.crc[1].offset,			"ignition", "rom_crc1",					"0"},
@@ -474,7 +476,7 @@ static int FindMainCRCPreBlk(const struct ImageHandle *ih)
 	uint32_t where=0;
 	//                                LL    LL                HH    HH          s
 	uint8_t needle[] = {0xE6, 0xFC, 0x00, 0x00, 0xE6, 0xFD, 0x00, 0x00, 0xE0, 0x0E, 0xDA, 0x00, 0x00, 0x00, 0xF6, 0xF4};
-	uint8_t   mask[] = {0xff, 0xff, 0x00, 0x00, 0xff, 0xff, 0x00, 0xff, 0xff, 0x0f, 0xFF, 0x00, 0x00, 0x00, 0xff, 0xff};
+	uint8_t   mask[] = {0xff, 0xff, 0x00, 0x00, 0xff, 0xff, 0x00, 0xff, 0xff, 0x0f, 0xff, 0x00, 0x00, 0x00, 0xff, 0xff};
 
 	printf(" Searching for main ROM CRC pre block...");
 	DEBUG_FLUSH_CRC;
@@ -651,7 +653,7 @@ static int DoMainCRCs(struct ImageHandle *ih)
 				p32=(uint32_t *)(ih->d.u8 + nCRCAddr);
 				nCRC=le32toh(*p32);
 
-				printf(" @%05x CRC: %08X  CalcCRC: %08X", nCRCAddr, nCRC, nCalcCRC);
+				printf(" @%05x CRC: %08X CalcCRC: %08X%s", nCRCAddr, nCRC, nCalcCRC, nCalcCRCSeed?"(r)":"   ");
 
 				if (nCalcCRC != nCRC)
 				{
@@ -673,11 +675,15 @@ static int DoMainCRCs(struct ImageHandle *ih)
 					printf("  CRC OK\n");
 				}
 			} else {
-				printf("                       CalcCRC: %08X\n", nCalcCRC);
+				printf("                      CalcCRC: %08X%s\n", nCalcCRC, nCalcCRCSeed?"(r)":"   ");
 			}
 
-			if (Config.crc[4].r.start && Config.crc[4].r.end)
+			if (Config.crc[0].r.start && Config.crc[0].r.end)
 				nCalcCRCSeed=nCalcCRC;
+		}
+		else
+		{
+			DEBUG_CRC(" %d) Adr: 0x%06X-0x%06X SKIPPED\n", i, Config.crc[0].r.start, Config.crc[0].r.end);
 		}
 	}
 	return result;
