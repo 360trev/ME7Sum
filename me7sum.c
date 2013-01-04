@@ -470,7 +470,12 @@ static int FindMainCRCPreBlk(const struct ImageHandle *ih)
 	uint8_t needle[] = {0xE6, 0xFC, 0x00, 0x00, 0xE6, 0xFD, 0x00, 0x00, 0xE0, 0x0E, 0xDA, 0x00, 0x00, 0x00, 0xF6, 0xF4};
 	uint8_t   mask[] = {0xff, 0xff, 0x00, 0x00, 0xff, 0xff, 0x00, 0xff, 0xff, 0x0f, 0xFF, 0x00, 0x00, 0x00, 0xff, 0xff};
 
-	printf("Searching for main ROM CRC pre block...\n");
+	printf(" Searching for main ROM CRC pre block...");
+#ifdef DEBUG_CRC_MATCHING
+	printf("\n");
+#else
+	fflush(stdout);
+#endif
 
 	found=FindMainCRCData(ih, "CRC pre block", needle, mask, sizeof(needle), 1, 3, &offset, 1, &where);
 
@@ -480,8 +485,9 @@ static int FindMainCRCPreBlk(const struct ImageHandle *ih)
 		Config.crc[0].r.start=offset;
 		Config.crc[0].r.end=offset+(ih->d.u8[where+9]>>4)-1;
 #ifdef DEBUG_CRC_MATCHING
-		printf("Found %s #%d 0x%x-0x%x (0x%x)\n", "CRC pre block", 0, offset, Config.crc[0].r.end, where);
+		printf("Found %s #%d 0x%x-0x%x (0x%x): ", "CRC pre block", 0, offset, Config.crc[0].r.end, where);
 #endif
+		printf("OK\n");
 		return 0;
 	}
 
@@ -489,6 +495,8 @@ static int FindMainCRCPreBlk(const struct ImageHandle *ih)
 	{
 		printf("Too many matches (%d). CRC block start find failed\n", found);
 	}
+
+	printf("FAIL\n");
 	return -1;
 }
 
@@ -503,7 +511,12 @@ static int FindMainCRCBlks(const struct ImageHandle *ih)
 	uint8_t n1[] = {0x10, 0x9B, 0xE6, 0xF4, 0x00, 0x00, 0xE6, 0xF5, 0x00, 0x00, 0x26, 0xF4};
 	uint8_t m1[] = {0xff, 0xff, 0xff, 0xff, 0x00, 0x00, 0xff, 0xff, 0x00, 0xff, 0xff, 0xff};
 
-	printf("Searching for main ROM CRC block starts...\n");
+	printf(" Searching for main ROM CRC block starts...");
+#ifdef DEBUG_CRC_MATCHING
+	printf("\n");
+#else
+	fflush(stdout);
+#endif
 
 	found=FindMainCRCData(ih, "CRC block starts", n0, m0, sizeof(n0), 1, 3, offset, MAX_CRC_BLKS, NULL);
 
@@ -520,13 +533,19 @@ static int FindMainCRCBlks(const struct ImageHandle *ih)
 			ret0=0;
 		}
 	}
+	printf("%s\n", ret0?"FAIL":"OK");
 
 	if (found>MAX_CRC_BLKS)
 	{
 		printf("Too many matches (%d). CRC block start find failed\n", found);
 	}
 
-	printf("Searching for main ROM CRC block ends...\n");
+	printf(" Searching for main ROM CRC block ends...");
+#ifdef DEBUG_CRC_MATCHING
+	printf("\n");
+#else
+	fflush(stdout);
+#endif
 
 	found=FindMainCRCData(ih, "CRC block end", n1, m1, sizeof(n1), 2, MAX_CRC_BLKS, offset, 4, NULL);
 
@@ -543,6 +562,7 @@ static int FindMainCRCBlks(const struct ImageHandle *ih)
 			ret1=0;
 		}
 	}
+	printf("%s\n", ret1?"FAIL":"OK");
 
 	if (found>MAX_CRC_BLKS)
 	{
@@ -565,7 +585,12 @@ static int FindMainCRCOffsets(const struct ImageHandle *ih)
 	uint8_t needle[] = {0xF6, 0xF5, 0x00, 0x00, 0xE6, 0xF4, 0x00, 0x00, 0xE6, 0xF5, 0x00, 0x00, 0xDA, 0x00 /*, 0x00, 0x00, 0xe6, 0x00, 0x04, 0x02 */};
 	uint8_t   mask[] = {0xff, 0xff, 0x00, 0x00, 0xff, 0xff, 0x00, 0x00, 0xff, 0xff, 0x00, 0x00, 0xff, 0xff /*, 0x00, 0x00, 0xff, 0xff, 0xff, 0xff */};
 
-	printf("Searching for main ROM CRC offsets...\n");
+	printf(" Searching for main ROM CRC offsets...");
+#ifdef DEBUG_CRC_MATCHING
+	printf("\n");
+#else
+	fflush(stdout);
+#endif
 
 	found=FindMainCRCData(ih, "CRC offset", needle, mask, sizeof(needle), 3, 5, offset, MAX_CRC_OFFSETS, NULL);
 
@@ -584,10 +609,11 @@ static int FindMainCRCOffsets(const struct ImageHandle *ih)
 
 	if (found!=3)
 	{
-		printf("Did not find exactly 3 matches (got %d). CRC offset find failed\n", found);
 #ifndef DEBUG_CRC_MATCHING
+		printf("Did not find exactly 3 matches (got %d). CRC offset find failed\n", found);
 		memset(Config.crc, 0, sizeof(Config.crc));
 #endif
+		printf("FAIL\n");
 		return -1;
 	}
 
@@ -597,6 +623,7 @@ static int FindMainCRCOffsets(const struct ImageHandle *ih)
 		Config.crc[3].offset=0;
 	}
 
+	printf("OK\n");
 	return 0;
 }
 
@@ -619,7 +646,7 @@ static int DoMainCRCs(struct ImageHandle *ih)
 
 			nCalcCRC = crc32(nCalcCRCSeed, ih->d.u8+nStart, nLen);
 
-			printf("%d: Adr: 0x%06X-0x%06X", i, Config.crc[i].r.start, Config.crc[i].r.end);
+			printf(" %d) Adr: 0x%06X-0x%06X", i, Config.crc[i].r.start, Config.crc[i].r.end);
 
 			if (nCRCAddr+4>ih->len)
 			{
@@ -631,7 +658,7 @@ static int DoMainCRCs(struct ImageHandle *ih)
 				p32=(uint32_t *)(ih->d.u8 + nCRCAddr);
 				nCRC=le32toh(*p32);
 
-				printf(" @0x%x CRC: %08X  CalcCRC: %08X (seed %08X)", nCRCAddr, nCRC, nCalcCRC, nCalcCRCSeed);
+				printf(" @0x%x CRC: %08X  CalcCRC: %08X", nCRCAddr, nCRC, nCalcCRC);
 
 				if (nCalcCRC != nCRC)
 				{
@@ -653,7 +680,7 @@ static int DoMainCRCs(struct ImageHandle *ih)
 					printf("  CRC OK\n");
 				}
 			} else {
-				printf("                         CalcCRC: %08X (seed %08X)\n", nCalcCRC, nCalcCRCSeed);
+				printf("                         CalcCRC: %08X\n", nCalcCRC);
 			}
 
 			if (Config.crc[4].r.start && Config.crc[4].r.end)
@@ -669,7 +696,12 @@ static int FindMainRomOffset(const struct ImageHandle *ih)
 	uint32_t needle[4];
 	uint32_t mask[4];
 
-	printf("Searching for main ROM checksum...\n");
+	printf(" Searching for main ROM checksum...");
+#ifdef DEBUG_MAIN_MATCHING
+	printf("\n");
+#else
+	fflush(stdout);
+#endif
 
 	needle[0]=htole32(Config.base_address);
 	needle[1]=htole32(Config.base_address+0x0f000);
@@ -700,9 +732,11 @@ static int FindMainRomOffset(const struct ImageHandle *ih)
 		printf("Found main block descriptor at 0x%x\n", offset);
 #endif
 		Config.main_checksum_offset=offset;
+		printf("OK\n");
 		return 0;
 	}
 
+	printf("FAIL\n");
 	return -1;
 }
 
@@ -785,7 +819,7 @@ static int DoMainChecksum(struct ImageHandle *ih, uint32_t nOffset, uint32_t nCs
 	uint32_t nCalcChksum;
 	uint32_t nCalcChksum2;
 
-	printf("ROM Checksum Block Offset Table 0x%X [16 bytes]\n\n",
+	printf(" ROM Checksum Block Offset Table @0x%X [16 bytes]:\n",
 		Config.main_checksum_offset);
 
 	// C16x processors are little endian
@@ -801,29 +835,25 @@ static int DoMainChecksum(struct ImageHandle *ih, uint32_t nOffset, uint32_t nCs
 
 	// block 1
 	nCalcChksum = CalcChecksumBlk(ih, r);
-	printf("Adr: 0x%06X-0x%06X  Block #1 - nCalcChksum=0x%04x\n",
-		r[0].start, r[0].end, nCalcChksum);
+	printf(" 1) Adr: 0x%06X-0x%06X\n", r[0].start, r[0].end);
 
 	if (r[0].end + 1 != r[1].start)
 	{
-		printf("Adr: 0x%06X-0x%06X  MAP REGION SKIPPED, NOT PART OF MAIN CHECKSUM\n",
+		printf(" 2) Adr: 0x%06X-0x%06X  MAP REGION SKIPPED, NOT PART OF MAIN CHECKSUM\n",
 			r[0].end+1, r[1].start-1);
 	}
 
 	// block 2
 	nCalcChksum2= CalcChecksumBlk(ih, r+1);
-	printf("Adr: 0x%06X-0x%06X  Block #2 - nCalcChksum=0x%04x\n",
-		r[1].start, r[1].end,nCalcChksum2);
+	printf(" 3) Adr: 0x%06X-0x%06X\n", r[1].start, r[1].end);
 
 	nCalcChksum += nCalcChksum2;
-	printf("\nRead in stored MAIN ROM checksum block @ 0x%X [8 bytes]\n",
-		Config.main_checksum_final);
 
 	// C16x processors are little endian
 	// copy from (le) buffer
 	memcpy_from_le32(&csum, ih->d.u8+nCsumAddr, sizeof(csum));
 
-	printf("Chksum : 0x%08X", csum.v);
+	printf(" @0x%x Chksum : 0x%08X", Config.main_checksum_final, csum.v);
 	if(csum.v != ~csum.iv)
 	{
 		printf(" ~Chksum : 0x%08X INV NOT OK", csum.iv);
@@ -863,6 +893,13 @@ static int FindChecksumBlks(const struct ImageHandle *ih)
 	int i, found=0, offset=0;
 	uint32_t needle[2];
 
+	printf(" Searching for multipoint block descriptors...");
+#ifdef DEBUG_MULTIPOINT_MATCHING
+	printf("\n");
+#else
+	fflush(stdout);
+#endif
+
 	needle[0]=htole32(Config.base_address);
 	needle[1]=htole32(Config.base_address+0x3fff);
 
@@ -877,6 +914,9 @@ static int FindChecksumBlks(const struct ImageHandle *ih)
 
 			if (desc->csum.v==~desc->csum.iv)
 			{
+#ifdef DEBUG_MULTIPOINT_MATCHING
+				printf("Found possible multipoint descriptor #%d at 0x%x\n", found+1, i);
+#endif
 				offset=i;
 				found++;
 			}
@@ -891,14 +931,16 @@ static int FindChecksumBlks(const struct ImageHandle *ih)
 
 		if (desc->csum.v==~desc->csum.iv)
 		{
-#ifdef DEBUG_MULTIPIONT_MATCHING
+#ifdef DEBUG_MULTIPOINT_MATCHING
 			printf("Found descriptor at 0x%x\n", offset);
 #endif
 			Config.multipoint_block_start=offset;
+			printf("OK\n");
 			return 0;
 		}
 	}
 
+	printf("FAIL\n");
 	return -1;
 }
 
@@ -929,7 +971,7 @@ static int DoChecksumBlk(struct ImageHandle *ih, uint32_t nStartBlk)
 		return -1;
 	}
 
-	printf("Adr: 0x%06X-0x%06X ", desc.r.start, desc.r.end);
+	printf(" Adr: 0x%06X-0x%06X ", desc.r.start, desc.r.end);
 	fflush(stdout);
 
 	if(desc.r.start==0xffffffff)
