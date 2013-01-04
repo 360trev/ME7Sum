@@ -49,6 +49,8 @@
 //#define DEBUG_MAIN_MATCHING
 //#define DEBUG_MULTIPOINT_MATCHING
 
+#include "debug.h"
+
 // structures
 struct Range {
 	uint32_t	start;
@@ -212,7 +214,8 @@ int main(int argc, char **argv)
 	}
 
 	// sanity check: validate firmware file is at least 512kbytes length before proceeding.
-	if(ih.len < (1024*512)) {
+	if(ih.len < (1024*512))
+	{
 		printf("File too small. Are you sure this is a firmware dump?\n");
 		goto out;
 	}
@@ -261,9 +264,7 @@ int main(int argc, char **argv)
 		ErrorsFound++;
 	}
 
-#ifdef DEBUG_CRC_MATCHING
-	exit (-1);
-#endif
+	DEBUG_EXIT_CRC;
 
 	//
 	// Step #2 Main ROM checksums
@@ -289,9 +290,7 @@ int main(int argc, char **argv)
 		ErrorsFound++;
 	}
 
-#ifdef DEBUG_MAIN_MATCHING
-	exit (-1);
-#endif
+	DEBUG_EXIT_MAIN;
 
 	//
 	// Step #3 Multi point checksums
@@ -320,11 +319,10 @@ int main(int argc, char **argv)
 		ErrorsFound++;
 	}
 
-#ifdef DEBUG_MULTIPOINT_MATCHING
-	exit (-1);
-#endif
+	DEBUG_EXIT_MULTIPOINT;
 
-	if(output && ErrorsCorrected > 0) {
+	if(output && ErrorsCorrected > 0)
+	{
 		// write crc corrected file out
 		save_file(output,ih.d.p,ih.len);
 	}
@@ -398,13 +396,12 @@ static int GetRomInfo(const struct ImageHandle *ih, struct section *osconfig,	ui
 		{
 			// restrict maximum dump to 1kbyte [buffer size]
 			if(ptr_length > 1024) ptr_length = 1024;
-#ifdef DEBUG_ROM_INFO
-			printf("\n%s = %s\n",type_str,    ptr_type);
-			printf("%s = %s\n",visible_str, ptr_visible);
-			printf("%s = '%s'\n",label_str, ptr_label);
-			printf("%s = %p\n",offset_str,  ptr_offset);
-			printf("%s = %p\n",length_str,  ptr_length);
-#endif
+			DEBUG_ROM("\n%s = %s\n",type_str,    ptr_type);
+			DEBUG_ROM("%s = %s\n",visible_str, ptr_visible);
+			DEBUG_ROM("%s = '%s'\n",label_str, ptr_label);
+			DEBUG_ROM("%s = 0x%x\n",offset_str,  ptr_offset);
+			DEBUG_ROM("%s = %d\n",length_str,  ptr_length);
+
 			/* snprintf null terminates for us if string is too long :) */
 			snprintf(str_data, ptr_length, "%s", ih->d.s+ptr_offset);
 			if(! strncmp("true",(char *)ptr_visible,4))
@@ -442,12 +439,13 @@ static int FindMainCRCData(const struct ImageHandle *ih, const char *what,
 			uint32_t addr=(high<<16) | low;
 
 			if (addr>Config.base_address && addr-Config.base_address<ih->len) {
+				DEBUG_CRC("Found possible %s #%d at 0x%x (from 0x%x)\n", what, found+1, addr, i);
 #ifdef DEBUG_CRC_MATCHING
-				printf("Found possible %s #%d at 0x%x (from 0x%x)\n", what, found+1, addr, i);
 				hexdump(ih->d.u8+i-4, 4, " [");
 				hexdump(ih->d.u8+i, len, "] ");
 				hexdump(ih->d.u8+i+1, 4, "\n");
 #endif
+
 				if(found<offset_len)
 				{
 					offset[found]=addr-Config.base_address;
@@ -471,11 +469,7 @@ static int FindMainCRCPreBlk(const struct ImageHandle *ih)
 	uint8_t   mask[] = {0xff, 0xff, 0x00, 0x00, 0xff, 0xff, 0x00, 0xff, 0xff, 0x0f, 0xFF, 0x00, 0x00, 0x00, 0xff, 0xff};
 
 	printf(" Searching for main ROM CRC pre block...");
-#ifdef DEBUG_CRC_MATCHING
-	printf("\n");
-#else
-	fflush(stdout);
-#endif
+	DEBUG_FLUSH_CRC;
 
 	found=FindMainCRCData(ih, "CRC pre block", needle, mask, sizeof(needle), 1, 3, &offset, 1, &where);
 
@@ -484,16 +478,15 @@ static int FindMainCRCPreBlk(const struct ImageHandle *ih)
 		// crc0 is reserved for pre-region
 		Config.crc[0].r.start=offset;
 		Config.crc[0].r.end=offset+(ih->d.u8[where+9]>>4)-1;
-#ifdef DEBUG_CRC_MATCHING
-		printf("Found %s #%d 0x%x-0x%x (0x%x): ", "CRC pre block", 0, offset, Config.crc[0].r.end, where);
-#endif
+		DEBUG_CRC("Found %s #%d 0x%x-0x%x (0x%x): ", "CRC pre block", 0, offset, Config.crc[0].r.end, where);
+
 		printf("OK\n");
 		return 0;
 	}
 
 	if (found>1)
 	{
-		printf("Too many matches (%d). CRC block start find failed\n", found);
+		DEBUG_CRC("Too many matches (%d). CRC block start find failed\n", found);
 	}
 
 	printf("FAIL\n");
@@ -512,11 +505,7 @@ static int FindMainCRCBlks(const struct ImageHandle *ih)
 	uint8_t m1[] = {0xff, 0xff, 0xff, 0xff, 0x00, 0x00, 0xff, 0xff, 0x00, 0xff, 0xff, 0xff};
 
 	printf(" Searching for main ROM CRC blocks...");
-#ifdef DEBUG_CRC_MATCHING
-	printf("\n");
-#else
-	fflush(stdout);
-#endif
+	DEBUG_FLUSH_CRC;
 
 	found=FindMainCRCData(ih, "CRC block starts", n0, m0, sizeof(n0), 1, 3, offset, MAX_CRC_BLKS, NULL);
 
@@ -524,9 +513,7 @@ static int FindMainCRCBlks(const struct ImageHandle *ih)
 	{
 		for (i=0;i<found;i++)
 		{
-#ifdef DEBUG_CRC_MATCHING
-			printf("Found %s #%d at 0x%x\n", "CRC block start", i+1, offset[i]);
-#endif
+			DEBUG_CRC("Found %s #%d at 0x%x\n", "CRC block start", i+1, offset[i]);
 			// crc0 is reserved for pre-region
 			if (i<MAX_CRC_BLKS)
 				Config.crc[i+1].r.start=offset[i];
@@ -534,12 +521,10 @@ static int FindMainCRCBlks(const struct ImageHandle *ih)
 		}
 	}
 
-#ifdef DEBUG_CRC_MATCHING
 	if (found>MAX_CRC_BLKS)
 	{
-		printf("Too many matches (%d). CRC block start find failed\n", found);
+		DEBUG_CRC("Too many matches (%d). CRC block start find failed\n", found);
 	}
-#endif
 
 	found=FindMainCRCData(ih, "CRC block end", n1, m1, sizeof(n1), 2, MAX_CRC_BLKS, offset, 4, NULL);
 
@@ -547,9 +532,7 @@ static int FindMainCRCBlks(const struct ImageHandle *ih)
 	{
 		for (i=0;i<found;i++)
 		{
-#ifdef DEBUG_CRC_MATCHING
-			printf("Found %s #%d at 0x%x\n", "CRC block end", i+1, offset[i]);
-#endif
+			DEBUG_CRC("Found %s #%d at 0x%x\n", "CRC block end", i+1, offset[i]);
 			// crc0 is reserved for pre-region
 			if (i<MAX_CRC_BLKS)
 				Config.crc[i+1].r.end=offset[i];
@@ -557,20 +540,16 @@ static int FindMainCRCBlks(const struct ImageHandle *ih)
 		}
 	}
 
-#ifdef DEBUG_CRC_MATCHING
 	if (found>MAX_CRC_BLKS)
 	{
-		printf("Too many matches (%d). CRC block end find failed\n", found);
+		DEBUG_CRC("Too many matches (%d). CRC block end find failed\n", found);
 	}
-#endif
 
 	if (ret0||ret1)
 	{
 		if (ih->len==512*1024)
 		{
-#ifdef DEBUG_CRC_MATCHING
-			printf("No CRC regions detected. Falling back to default 512k CRC blocks\n");
-#endif
+			DEBUG_CRC("No CRC regions detected. Falling back to default 512k CRC blocks\n");
 			Config.crc[1].r.start=0x10000;
 			Config.crc[1].r.end=0x13fff;
 			Config.crc[2].r.start=0x14300;
@@ -599,11 +578,7 @@ static int FindMainCRCOffsets(const struct ImageHandle *ih)
 	uint8_t   mask[] = {0xff, 0xff, 0x00, 0x00, 0xff, 0xff, 0x00, 0x00, 0xff, 0xff, 0x00, 0x00, 0xff, 0xff /*, 0x00, 0x00, 0xff, 0xff, 0xff, 0xff */};
 
 	printf(" Searching for main ROM CRC offsets...");
-#ifdef DEBUG_CRC_MATCHING
-	printf("\n");
-#else
-	fflush(stdout);
-#endif
+	DEBUG_FLUSH_CRC;
 
 	found=FindMainCRCData(ih, "CRC offset", needle, mask, sizeof(needle), 3, 5, offset, MAX_CRC_OFFSETS, NULL);
 
@@ -611,9 +586,7 @@ static int FindMainCRCOffsets(const struct ImageHandle *ih)
 	{
 		for (i=0;i<found;i++)
 		{
-#ifdef DEBUG_CRC_MATCHING
-			printf("Found CRC #%d at 0x%x\n", i+1, offset[i]);
-#endif
+			DEBUG_CRC("Found CRC #%d at 0x%x\n", i+1, offset[i]);
 			// crc0 is reserved for pre-region
 			if (i<MAX_CRC_BLKS)
 				Config.crc[i+1].offset=offset[i];
@@ -622,16 +595,15 @@ static int FindMainCRCOffsets(const struct ImageHandle *ih)
 
 	if (found!=3)
 	{
-#ifdef DEBUG_CRC_MATCHING
-		printf("Did not find exactly 3 matches (got %d). CRC offset find failed\n", found);
-#endif
+		DEBUG_CRC("Did not find exactly 3 matches (got %d). CRC offset find failed\n", found);
 		memset(Config.crc, 0, sizeof(Config.crc));
 		printf("FAIL\n");
 		return -1;
 	}
 
 	/* if we found exactly 3 crc values, and region 4 exists, use region 3's crc for calcing 3+4 */
-	if (Config.crc[4].r.start && Config.crc[4].r.end) {
+	if (Config.crc[4].r.start && Config.crc[4].r.end)
+	{
 		Config.crc[4].offset=Config.crc[3].offset;
 		Config.crc[3].offset=0;
 	}
@@ -710,11 +682,7 @@ static int FindMainRomOffset(const struct ImageHandle *ih)
 	uint32_t mask[4];
 
 	printf(" Searching for main ROM checksum...");
-#ifdef DEBUG_MAIN_MATCHING
-	printf("\n");
-#else
-	fflush(stdout);
-#endif
+	DEBUG_FLUSH_MAIN;
 
 	needle[0]=htole32(Config.base_address);
 	needle[1]=htole32(Config.base_address+0x0f000);
@@ -731,9 +699,7 @@ static int FindMainRomOffset(const struct ImageHandle *ih)
 		if (i<0) break;
 		if (i+sizeof(needle)<ih->len)
 		{
-#ifdef DEBUG_MAIN_MATCHING
-			printf("Found possible main block descriptor at 0x%x\n", i);
-#endif
+			DEBUG_MAIN("Found possible main block descriptor at 0x%x\n", i);
 			offset=i;
 			found++;
 		}
@@ -741,9 +707,7 @@ static int FindMainRomOffset(const struct ImageHandle *ih)
 
 	if (found==1)
 	{
-#ifdef DEBUG_MAIN_MATCHING
-		printf("Found main block descriptor at 0x%x\n", offset);
-#endif
+		DEBUG_MAIN("Found main block descriptor at 0x%x\n", offset);
 		Config.main_checksum_offset=offset;
 		printf("OK\n");
 		return 0;
@@ -760,9 +724,7 @@ static int FindMainRomFinal(const struct ImageHandle *ih)
 
 	if (csum->v == ~csum->iv)
 	{
-#ifdef DEBUG_MAIN_MATCHING
-		printf("Found main csum at 0x%x\n", offset);
-#endif
+		DEBUG_MAIN("Found main csum at 0x%x\n", offset);
 		Config.main_checksum_final=offset;
 		return 0;
 	}
@@ -840,7 +802,8 @@ static int DoMainChecksum(struct ImageHandle *ih, uint32_t nOffset, uint32_t nCs
 	memcpy_from_le32(r, ih->d.u8+nOffset, sizeof(r));
 
 	if (NormalizeRange(ih, r) || NormalizeRange(ih, r+1) ||
-	    r[0].start==0xffffffff || r[1].start==0xffffffff) {
+	    r[0].start==0xffffffff || r[1].start==0xffffffff)
+	{
 		printf(" ERROR! BAD MAIN CHECKSUM DESCRIPTOR(s)\n");
 		ErrorsFound++;
 		return -1;
@@ -907,11 +870,7 @@ static int FindChecksumBlks(const struct ImageHandle *ih)
 	uint32_t needle[2];
 
 	printf(" Searching for multipoint block descriptors...");
-#ifdef DEBUG_MULTIPOINT_MATCHING
-	printf("\n");
-#else
-	fflush(stdout);
-#endif
+	DEBUG_FLUSH_MULTIPOINT;
 
 	needle[0]=htole32(Config.base_address);
 	needle[1]=htole32(Config.base_address+0x3fff);
@@ -927,9 +886,7 @@ static int FindChecksumBlks(const struct ImageHandle *ih)
 
 			if (desc->csum.v==~desc->csum.iv)
 			{
-#ifdef DEBUG_MULTIPOINT_MATCHING
-				printf("Found possible multipoint descriptor #%d at 0x%x\n", found+1, i);
-#endif
+				DEBUG_MULTIPOINT("Found possible multipoint descriptor #%d at 0x%x\n", found+1, i);
 				offset=i;
 				found++;
 			}
@@ -944,9 +901,7 @@ static int FindChecksumBlks(const struct ImageHandle *ih)
 
 		if (desc->csum.v==~desc->csum.iv)
 		{
-#ifdef DEBUG_MULTIPOINT_MATCHING
-			printf("Found descriptor at 0x%x\n", offset);
-#endif
+			DEBUG_MULTIPOINT("Found descriptor at 0x%x\n", offset);
 			Config.multipoint_block_start=offset;
 			printf("OK\n");
 			return 0;
@@ -979,7 +934,8 @@ static int DoChecksumBlk(struct ImageHandle *ih, uint32_t nStartBlk)
 	// C16x processors are little endian
 	// copy from (le) buffer into our descriptor
 	memcpy_from_le32(&desc, ih->d.u8+nStartBlk, sizeof(desc));
-	if (NormalizeRange(ih, &desc.r)) {
+	if (NormalizeRange(ih, &desc.r))
+	{
 		ErrorsFound++;
 		return -1;
 	}
