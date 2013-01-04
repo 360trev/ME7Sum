@@ -438,13 +438,13 @@ static int FindMainCRCData(const struct ImageHandle *ih, const char *what,
 			uint16_t high=le16toh(ih->d.u16[i/2+off_h]);
 			uint32_t addr=(high<<16) | low;
 
+			if (addr>Config.base_address && addr-Config.base_address<ih->len) {
 #ifdef DEBUG_CRC_MATCHING
-			printf("Found possible %s #%d at 0x%x (from 0x%x)\n", what, found+1, addr, i);
-			hexdump(ih->d.u8+i-4, 4, " [");
-			hexdump(ih->d.u8+i, len, "] ");
-			hexdump(ih->d.u8+i+1, 4, "\n");
+				printf("Found possible %s #%d at 0x%x (from 0x%x)\n", what, found+1, addr, i);
+				hexdump(ih->d.u8+i-4, 4, " [");
+				hexdump(ih->d.u8+i, len, "] ");
+				hexdump(ih->d.u8+i+1, 4, "\n");
 #endif
-			if (addr>Config.base_address) {
 				if(found<offset_len)
 				{
 					offset[found]=addr;
