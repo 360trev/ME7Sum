@@ -511,7 +511,7 @@ static int FindMainCRCBlks(const struct ImageHandle *ih)
 	uint8_t n1[] = {0x10, 0x9B, 0xE6, 0xF4, 0x00, 0x00, 0xE6, 0xF5, 0x00, 0x00, 0x26, 0xF4};
 	uint8_t m1[] = {0xff, 0xff, 0xff, 0xff, 0x00, 0x00, 0xff, 0xff, 0x00, 0xff, 0xff, 0xff};
 
-	printf(" Searching for main ROM CRC block starts...");
+	printf(" Searching for main ROM CRC blocks...");
 #ifdef DEBUG_CRC_MATCHING
 	printf("\n");
 #else
@@ -533,18 +533,12 @@ static int FindMainCRCBlks(const struct ImageHandle *ih)
 			ret0=0;
 		}
 	}
-	printf("%s\n", ret0?"FAIL":"OK");
 
+#ifdef DEBUG_CRC_MATCHING
 	if (found>MAX_CRC_BLKS)
 	{
 		printf("Too many matches (%d). CRC block start find failed\n", found);
 	}
-
-	printf(" Searching for main ROM CRC block ends...");
-#ifdef DEBUG_CRC_MATCHING
-	printf("\n");
-#else
-	fflush(stdout);
 #endif
 
 	found=FindMainCRCData(ih, "CRC block end", n1, m1, sizeof(n1), 2, MAX_CRC_BLKS, offset, 4, NULL);
@@ -562,13 +556,32 @@ static int FindMainCRCBlks(const struct ImageHandle *ih)
 			ret1=0;
 		}
 	}
-	printf("%s\n", ret1?"FAIL":"OK");
 
+#ifdef DEBUG_CRC_MATCHING
 	if (found>MAX_CRC_BLKS)
 	{
 		printf("Too many matches (%d). CRC block end find failed\n", found);
 	}
+#endif
 
+	if (ret0||ret1)
+	{
+		if (ih->len==512*1024)
+		{
+#ifdef DEBUG_CRC_MATCHING
+			printf("No CRC regions detected. Falling back to default 512k CRC blocks\n");
+#endif
+			Config.crc[1].r.start=0x10000;
+			Config.crc[1].r.end=0x13fff;
+			Config.crc[2].r.start=0x14300;
+			Config.crc[2].r.end=0x17f67;
+			Config.crc[3].r.start=0x18191;
+			Config.crc[3].r.end=0x1fbff;
+			ret0=ret1=0;
+		}
+	}
+
+	printf("%s\n", (ret0||ret1)?"FAIL":"OK");
 	return ret0 & ret1;
 }
 
@@ -609,10 +622,10 @@ static int FindMainCRCOffsets(const struct ImageHandle *ih)
 
 	if (found!=3)
 	{
-#ifndef DEBUG_CRC_MATCHING
+#ifdef DEBUG_CRC_MATCHING
 		printf("Did not find exactly 3 matches (got %d). CRC offset find failed\n", found);
-		memset(Config.crc, 0, sizeof(Config.crc));
 #endif
+		memset(Config.crc, 0, sizeof(Config.crc));
 		printf("FAIL\n");
 		return -1;
 	}
@@ -828,7 +841,7 @@ static int DoMainChecksum(struct ImageHandle *ih, uint32_t nOffset, uint32_t nCs
 
 	if (NormalizeRange(ih, r) || NormalizeRange(ih, r+1) ||
 	    r[0].start==0xffffffff || r[1].start==0xffffffff) {
-		printf("ERROR! BAD MAIN CHECKSUM DESCRIPTOR(s)\n");
+		printf(" ERROR! BAD MAIN CHECKSUM DESCRIPTOR(s)\n");
 		ErrorsFound++;
 		return -1;
 	}
