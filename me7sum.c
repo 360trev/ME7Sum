@@ -643,7 +643,7 @@ static int DoMainCRCs(struct ImageHandle *ih)
 
 			if (nCRCAddr+4>ih->len)
 			{
-				printf(" @0x%x INVALID ADDRESS\n", nCRCAddr);
+				printf(" @%05x INVALID ADDRESS\n", nCRCAddr);
 			}
 			else if (nCRCAddr)
 			{
@@ -651,7 +651,7 @@ static int DoMainCRCs(struct ImageHandle *ih)
 				p32=(uint32_t *)(ih->d.u8 + nCRCAddr);
 				nCRC=le32toh(*p32);
 
-				printf(" @0x%x CRC: %08X  CalcCRC: %08X", nCRCAddr, nCRC, nCalcCRC);
+				printf(" @%05x CRC: %08X  CalcCRC: %08X", nCRCAddr, nCRC, nCalcCRC);
 
 				if (nCalcCRC != nCRC)
 				{
@@ -673,7 +673,7 @@ static int DoMainCRCs(struct ImageHandle *ih)
 					printf("  CRC OK\n");
 				}
 			} else {
-				printf("                         CalcCRC: %08X\n", nCalcCRC);
+				printf("                       CalcCRC: %08X\n", nCalcCRC);
 			}
 
 			if (Config.crc[4].r.start && Config.crc[4].r.end)
@@ -802,7 +802,7 @@ static int DoMainChecksum(struct ImageHandle *ih, uint32_t nOffset, uint32_t nCs
 	uint32_t nCalcChksum;
 	uint32_t nCalcChksum2;
 
-	printf(" ROM Checksum Block Offset Table @0x%X [16 bytes]:\n",
+	printf(" ROM Checksum Block Offset Table @%05x [16 bytes]:\n",
 		Config.main_checksum_offset);
 
 	// C16x processors are little endian
@@ -837,7 +837,7 @@ static int DoMainChecksum(struct ImageHandle *ih, uint32_t nOffset, uint32_t nCs
 	// copy from (le) buffer
 	memcpy_from_le32(&csum, ih->d.u8+nCsumAddr, sizeof(csum));
 
-	printf(" @0x%x Chksum : 0x%08X", Config.main_checksum_final, csum.v);
+	printf(" @%05x Chksum : 0x%08X", Config.main_checksum_final, csum.v);
 	if(csum.v != ~csum.iv)
 	{
 		printf(" ~Chksum : 0x%08X INV NOT OK", csum.iv);
