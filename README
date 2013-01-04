@@ -1,17 +1,43 @@
-This project is under BSD open source license. Its on the most unrestrictive freeware license possible. No warranty implied or given. 
+This project is under BSD open source license. Its on the most unrestrictive
+freeware license possible. No warranty implied or given.
 
-Its a tool written in C for management of Bosch ME7 firmware dumps. I specifically wrote this tool to verify the dump of a Ferrari 360 Firmware.
+Its a tool written in C for management of Bosch ME7 firmware dumps.
 
-Currently its been targeted to work with config files (simple ini variety) but could easily be adapted to use XML in future versions. Its currently only doing calculation, I don't write the updated checksums back to the file, again a future iteration could address this (easy to do).
+It should generally autodetect checksum/CRC blocks, but is known not to work with:
 
-Enjoy!
+4Z7907551AA.bin
+4Z7907551R.bin
+4Z7907551S.bin
+ferrari360.bin
 
-Dedicated to the members of NefMoto community and Ferrari Enthusiast Clubs the world over.
-
-Find me at;
-www.clubscuderia.co.uk
-www.ferrarilife.com
-www.ferrarichat.com
+For testing, regions can be overriden in an ini file. See sample.ini for
+available block/image options, and bins/ferrari360.ini for an example of using
+the dump function.
 
 Feel free to contribute to the project!
 
+BUILDING:
+---------
+
+Under unix or cygwin, "make" should work.
+
+If not using GNUmake, try "make -f GNUMakefile"
+
+Under Windows MSVSS/nmake , type "prep.cmd" then "nmake"
+
+RUNNING:
+--------
+To check image.bin:
+
+ me7dump image.bin
+
+To override detected checksum/CRC blocks, and/or display dump information:
+
+ me7dump -i image.ini image.bin
+
+To output corrected checksums (the "-i" option is still available)
+
+ me7dump [-i image.ini] image.bin out.bin
+
+Note that if me7dump cannot completely detect checksum/CRC locations correctly,
+it will not output a file!
