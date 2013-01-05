@@ -74,7 +74,7 @@ uint8_t *load_file(const char *filename, size_t *filelen)
 	if(bytesRead != size) { printf("\nfailed to load module into buffer\n"); free(data); fclose(fp); return 0; }
 
 	/* close the file */
-	printf("þ Closing file\n\n");
+	printf("þ Closing file\n");
 	fclose(fp);
 	return(data);
 }
@@ -98,7 +98,7 @@ int save_file(const char *filename, const uint8_t *filebuf, size_t filelen)
 	if(bytesWritten != filelen) { printf("\nfailed to write buffer\n"); fclose(fp); return(-2); }
 
 	/* close the file */
-	printf("þ All OK, closing file\n\n");
+	printf("þ All OK, closing file\n");
 	fclose(fp);
 
 	return(0);

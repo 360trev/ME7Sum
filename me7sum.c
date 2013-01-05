@@ -82,8 +82,18 @@ struct rom_config {
 	} crc[MAX_CRC_BLKS+1];					/* 0/4 is pre-region (for kbox and other) Up to 5 CRC blocks (total) to check */
 };
 
+struct info_config {
+	InfoItem	EPK;
+	InfoItem	part_number;
+	InfoItem	engine_id;
+	InfoItem	sw_version;
+	InfoItem	hw_number;
+	InfoItem	sw_number;
+};
+
 // globals
 static struct rom_config Config;
+static struct info_config InfoConfig;
 
 static int ErrorsUncorrectable = 0;
 static int ErrorsFound = 0;
@@ -117,7 +127,19 @@ static PropertyListItem romProps[] = {
 	{ END_LIST,   0, "",""},
 };
 
-static int GetRomInfo(const struct ImageHandle *ih, struct section *osconfig, uint32_t num_of);
+static InfoListItem romInfo[] = {
+	// get rom region information
+	{	"EPK",			GET_VALUE, &InfoConfig.EPK,			"info", "epk",			"0", "41"},
+	{	"Part Number",	GET_VALUE, &InfoConfig.part_number,	"info", "part_number",	"0", "12"},
+	{	"Engine ID",	GET_VALUE, &InfoConfig.engine_id,	"info", "engine_id",	"0", "17"},
+	{	"SW Version",	GET_VALUE, &InfoConfig.sw_version,	"info", "sw_version",	"0", "4"},
+	{	"HW Number",	GET_VALUE, &InfoConfig.hw_number,	"info", "hw_number",	"0", "10"},
+	{	"SW Number",	GET_VALUE, &InfoConfig.sw_number,	"info", "sw_number",	"0", "10"},
+	{ NULL,END_LIST,NULL,NULL,NULL}
+};
+
+static int GetRomDump(const struct ImageHandle *ih, struct section *osconfig);
+static int GetRomInfo(const struct ImageHandle *ih, struct section *osconfig);
 
 static int FindMainCRCPreBlk(const struct ImageHandle *ih);
 static int FindMainCRCBlks(const struct ImageHandle *ih);
@@ -145,8 +167,6 @@ static void usage(const char *prog)
 int main(int argc, char **argv)
 {
 	int	iTemp;
-	int result;
-	int num_of;
 	char *prog=argv[0];
 	char *inifile=NULL;
 	char *input=NULL;
@@ -196,7 +216,7 @@ int main(int argc, char **argv)
 
 	if (inifile)
 	{
-		printf("Attemping to open firmware config file %s\n",inifile);
+		printf("Attemping to open firmware config file '%s'\n",inifile);
 		// load properties file into memory
 		osconfig = read_properties(inifile);
 		if(osconfig == NULL)
@@ -207,13 +227,14 @@ int main(int argc, char **argv)
 	}
 
 	// get rom region information from config file (see defined property list)
-	result = process_properties_list(osconfig, romProps);
+	process_properties_list(osconfig, romProps);
+	process_info_list(osconfig, romInfo);
 
 	// open the firmware file
-	printf("\nAttemping to open firmware file %s\n",input);
+	printf("\nAttemping to open firmware file '%s'\n",input);
 	if (iload_file(&ih, input, 0))
 	{
-		printf("failed to open firmware file\n");
+		printf("failed to open firmware file '%s'\n",input);
 		goto out;
 	}
 
@@ -227,15 +248,9 @@ int main(int argc, char **argv)
 	//
 	// Step #0 Show interesting ROM information
 	//
-	if ((num_of = get_property_value(osconfig, "dumps", "dump_show", NULL))>0)
-	{
-		printf("\nStep #0: Showing ROM info (typically ECUID Table)\n\n");
-		result = GetRomInfo(&ih, osconfig, num_of);
-	}
-	else
-	{
-		printf("\nStep #0: Skipping ROM info... undefined\n");
-	}
+
+	GetRomInfo(&ih, osconfig);
+	GetRomDump(&ih, osconfig);
 
 	DEBUG_EXIT_ROM;
 
@@ -312,6 +327,7 @@ int main(int argc, char **argv)
 	{
 		for(iTemp=0; iTemp<64; iTemp++)
 		{
+			int result=0;
 			printf("%2d) ",iTemp+1);
 			fflush(stdout);
 			result = DoChecksumBlk(&ih, Config.multipoint_block_start+(Config.multipoint_block_len*iTemp));
@@ -335,6 +351,7 @@ int main(int argc, char **argv)
 
 	if(output && ErrorsCorrected > 0)
 	{
+		printf("\nAttemping to output corrected firmware file '%s'\n",output);
 		// write crc corrected file out
 		save_file(output,ih.d.p,ih.len);
 	}
@@ -358,34 +375,102 @@ out:
  * - uses config file to parse rom data and show interesting information about this rom dump
  */
 
-static int GetRomInfo(const struct ImageHandle *ih, struct section *osconfig,	uint32_t num_of)
+static int GetRomInfo(const struct ImageHandle *ih, struct section *osconfig)
 {
-	char str_data[1025];	// Leave room for null termination
-	char type_str[256];
-	char visible_str[256];
-	char label_str[256];
-	char offset_str[256];
-	char length_str[256];
-#ifdef DEBUG_ROM_INFO
-	const char * ptr_type;
-#endif
-	const char * ptr_visible;
-	const char * ptr_label;
-	uint32_t ptr_offset;
-	uint32_t ptr_length;
-	int i;
+	InfoListItem *info;
+	int max_len=0;
 
-	if(ih == 0) return(-1);
+	if(ih == NULL) return(-1);
+
+	// Find the longest label so we know how big the label column should be
+	for(info=romInfo; info->attr_type!=END_LIST; info++)
+	{
+		if(info->item->off && info->item->len && strlen(info->label) > max_len) {
+			max_len=strlen(info->label);
+		}
+	}
+
+	if (!max_len) { return -1; }
+
+	printf("\nROM Info:\n");
+
+	for(info=romInfo; info->attr_type!=END_LIST; info++)
+	{
+		char *str_data;
+		InfoItem *item=info->item;
+		if(item->off == 0 || item->len == 0)
+		{
+			continue;
+		}
+
+		if(item->off+item->len >= ih->len)
+		{
+			printf("%s = INVALID OFFSET/LEN 0x%x/%d\n",info->label, item->off, item->len);
+			continue;
+		}
+		str_data=malloc(item->len+1);
+		/* snprintf null terminates for us if string is too long :) */
+		snprintf(str_data, item->len+1, "%s", ih->d.s+item->off);	// Leave room for null termination
+		printf(" %-*s : '%s'\n", max_len, info->label, str_data);
+		free(str_data);
+	}
+	return 0;
+}
+
+static int GetRomDump(const struct ImageHandle *ih, struct section *osconfig)
+{
+	uint32_t num_of;
+	int i, max_len=0;
+
+	if(ih == NULL) return(-1);
+
+	if ((num_of = get_property_value(osconfig, "dumps", "dump_show", NULL))<=0)
+	{
+		return 0;
+	}
+
+	// Find the longest label so we know how big the label column should be
+	for(i=1;i<=num_of;i++)
+	{
+		char label_str[81];
+		const char * ptr_label;
+
+		snprintf(label_str,  sizeof(label_str), "dump_%d_label",  i);
+		ptr_label   = get_property(       osconfig, "dumps", label_str,   NULL);
+		if(ptr_label) {
+			if(strlen(ptr_label)>max_len) {
+				max_len = strlen(ptr_label);
+			}
+			ptr_label=NULL;
+		}
+	}
+
+	printf("\nROM Dumps:\n");
+
 	//
 	// Dynamically walks through the config file and shows all properties defined...
 	//
 	for(i=1;i<=num_of;i++)
 	{
-		sprintf(type_str,   "dump_%d_type",   i);
-		sprintf(visible_str,"dump_%d_visible",i);
-		sprintf(label_str,  "dump_%d_label",  i);
-		sprintf(offset_str, "dump_%d_offset", i);
-		sprintf(length_str, "dump_%d_len",    i);
+		char type_str[81];
+		char visible_str[81];
+		char label_str[81];
+		char offset_str[81];
+		char length_str[81];
+
+#ifdef DEBUG_ROM_INFO
+		const char * ptr_type;
+#endif
+		const char * ptr_visible;
+		const char * ptr_label;
+		uint32_t ptr_offset;
+		uint32_t ptr_length;
+
+		snprintf(type_str,   sizeof(type_str), "dump_%d_type",   i);
+		snprintf(visible_str,sizeof(visible_str), "dump_%d_visible",i);
+		snprintf(label_str,  sizeof(label_str), "dump_%d_label",  i);
+		snprintf(offset_str, sizeof(offset_str), "dump_%d_offset", i);
+		snprintf(length_str, sizeof(length_str), "dump_%d_len",    i);
 
 		// get config out of ini file...
 #ifdef DEBUG_ROM_INFO
@@ -406,8 +491,9 @@ static int GetRomInfo(const struct ImageHandle *ih, struct section *osconfig,	ui
 		}
 		else
 		{
+			char str_data[1024];
 			// restrict maximum dump to 1kbyte [buffer size]
-			if(ptr_length > 1024) ptr_length = 1024;
+			if(ptr_length > sizeof(str_data) - 1) ptr_length = sizeof(str_data) - 1;	// Leave room for null termination
 			DEBUG_ROM("\n%s = %s\n",type_str,    ptr_type);
 			DEBUG_ROM("%s = %s\n",visible_str, ptr_visible);
 			DEBUG_ROM("%s = '%s'\n",label_str, ptr_label);
@@ -415,14 +501,14 @@ static int GetRomInfo(const struct ImageHandle *ih, struct section *osconfig,	ui
 			DEBUG_ROM("%s = %d\n",length_str,  ptr_length);
 
 			/* snprintf null terminates for us if string is too long :) */
-			snprintf(str_data, ptr_length+1, "%s", ih->d.s+ptr_offset);	// Leave room for null termination
-			if(! strncmp("true",(char *)ptr_visible,4))
+			snprintf(str_data, sizeof(str_data), "%s", ih->d.s+ptr_offset);
+			if(! strcmp("true",ptr_visible))
 			{
-				printf("%-20.20s '%s'\n",ptr_label, str_data);
+				printf(" %-*s : '%s'\n", max_len, ptr_label, str_data);
 			}
 			else
 			{
-				printf("%s = 'HIDDEN'\n",ptr_label);
+				printf(" %-*s = 'HIDDEN'\n", max_len, ptr_label);
 			}
 		}
 	}
