@@ -99,7 +99,7 @@ char *find_property(const struct section *sect, const char *name)
 	return NULL;
 }
 
-char *get_property(struct section *sections, const char *sectname, const char *propname, const char *defval)
+char *get_property(struct section *sections, const char *sectname, const char *propname, char *defval)
 {
 	const struct section *sect;
 	char *val;

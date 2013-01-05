@@ -19,7 +19,7 @@ typedef struct PropertyListItem {
 	uint32_t *attr_adr;
 	const char *attr_path;
 	const char *attr_name;
-	const char *attr_default;
+	/* const */ char *attr_default;	/* ugh. can't be const for stupid reasons */
 } PropertyListItem;
 
 uint32_t get_property_value(struct section *sections, const char *sectname, const char *propname, const char *def);
