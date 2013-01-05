@@ -3,7 +3,7 @@
 #include <stdint.h>
 #include "inifile_prop.h"
 
-uint32_t get_property_value(struct section *sections, char *sectname, char *propname, char *def)
+uint32_t get_property_value(struct section *sections, const char const *sectname, const char *propname, const char *def)
 {
 	uint32_t val=0;
 	uint32_t defval=0;
@@ -25,7 +25,6 @@ uint32_t get_property_value(struct section *sections, char *sectname, char *prop
 	}
 	return val;
 }
-
 
 int process_properties_list(struct section *osconfig, PropertyListItem *ci)
 {
