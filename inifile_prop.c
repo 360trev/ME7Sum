@@ -7,7 +7,7 @@ uint32_t get_property_value(struct section *sections, const char const *sectname
 {
 	uint32_t val=0;
 	uint32_t defval=0;
-	char *pStr=0;
+	const char *pStr=0;
 
 	// get default value string (if exists)
 	if(def != NULL) {
@@ -18,8 +18,7 @@ uint32_t get_property_value(struct section *sections, const char const *sectname
 	// success?
 	if(pStr != NULL) {
 		// scan property value
-		val=strtoul(pStr, NULL, 0);
-		free(pStr);
+		val = strtoul(pStr, NULL, 0);
 	} else {
 		val = defval;
 	}

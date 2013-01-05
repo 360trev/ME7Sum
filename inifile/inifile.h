@@ -56,8 +56,8 @@ extern "C" {
 
 const struct section *find_section(const struct section *sect, const char *name);
 int get_section_size(struct section *sect);
-char *find_property(const struct section *sect, const char *name);
-char *get_property(struct section *sections, const char *sectname, const char *propname, char *defval);
+const char *find_property(const struct section *sect, const char *name);
+const char *get_property(struct section *sections, const char *sectname, const char *propname, const char *defval);
 int get_numeric_property(struct section *sections, const char *sectname, const char *propname, int defval);
 void free_properties(struct section *sect);
 struct section *parse_properties(char *props);

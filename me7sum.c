@@ -367,10 +367,10 @@ static int GetRomInfo(const struct ImageHandle *ih, struct section *osconfig,	ui
 	char offset_str[256];
 	char length_str[256];
 #ifdef DEBUG_ROM_INFO
-	char * ptr_type;
+	const char * ptr_type;
 #endif
-	char * ptr_visible;
-	char * ptr_label;
+	const char * ptr_visible;
+	const char * ptr_label;
 	uint32_t ptr_offset;
 	uint32_t ptr_length;
 	int i;

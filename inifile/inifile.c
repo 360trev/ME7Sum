@@ -83,7 +83,7 @@ int get_section_size(struct section *sect)
 	return n;
 }
 
-char *find_property(const struct section *sect, const char *name)
+const char *find_property(const struct section *sect, const char *name)
 {
 	struct property *prop;
 
@@ -99,10 +99,10 @@ char *find_property(const struct section *sect, const char *name)
 	return NULL;
 }
 
-char *get_property(struct section *sections, const char *sectname, const char *propname, char *defval)
+const char *get_property(struct section *sections, const char *sectname, const char *propname, const char *defval)
 {
 	const struct section *sect;
-	char *val;
+	const char *val;
 
 	sect = find_section(sections, sectname);
 	// must return a pointer that can be freed!
