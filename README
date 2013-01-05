@@ -32,15 +32,15 @@ RUNNING:
 --------
 To check image.bin:
 
- me7dump image.bin
+ me7sum image.bin
 
 To override detected checksum/CRC blocks, and/or display dump information:
 
- me7dump -i image.ini image.bin
+ me7sum -i image.ini image.bin
 
 To output corrected checksums (the "-i" option is still available)
 
- me7dump [-i image.ini] image.bin out.bin
+ me7sum [-i image.ini] image.bin out.bin
 
-Note that if me7dump cannot completely detect checksum/CRC locations correctly,
+Note that if me7sum cannot completely detect checksum/CRC locations correctly,
 it will not output a file!
