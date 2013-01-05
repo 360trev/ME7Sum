@@ -33,12 +33,7 @@
 #include <errno.h>
 #include <ctype.h>	/* isprint() */
 
-#if _MSC_VER
-#define snprintf _snprintf
-#include "os/getopt.h"
-#else
-#include <getopt.h>
-#endif
+#include "os/os.h"
 
 #include "inifile_prop.h"
 #include "crc32.h"
