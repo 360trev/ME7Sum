@@ -106,11 +106,11 @@ char *get_property(struct section *sections, const char *sectname, const char *p
 
 	sect = find_section(sections, sectname);
 	// must return a pointer that can be freed!
-	if (!sect) return defval?strdup(defval):NULL;
+	if (!sect) return defval;
 
 	val = find_property(sect, propname);
 	// must return a pointer that can be freed!
-	return val ? val : defval?strdup(defval):NULL;
+	return val ? val : defval;
 }
 
 int get_numeric_property(struct section *sections, const char *sectname, const char *propname, int defval)
