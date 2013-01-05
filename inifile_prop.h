@@ -17,9 +17,9 @@ extern "C" {
 typedef struct PropertyListItem {
 	int attr_type;
 	uint32_t *attr_adr;
-	char *attr_path;
-	char *attr_name;
-	char *attr_default;
+	const char *attr_path;
+	const char *attr_name;
+	const char *attr_default;
 } PropertyListItem;
 
 uint32_t get_property_value(struct section *sections, const char *sectname, const char *propname, const char *def);
