@@ -54,7 +54,7 @@ static char *trimstr(char *s, char *end)
 	return str;
 }
 
-struct section *find_section(struct section *sect, char *name)
+const struct section *find_section(const struct section *sect, const char *name)
 {
 	while (sect)
 	{
@@ -83,7 +83,7 @@ int get_section_size(struct section *sect)
 	return n;
 }
 
-char *find_property(struct section *sect, char *name)
+char *find_property(const struct section *sect, const char *name)
 {
 	struct property *prop;
 
@@ -99,21 +99,23 @@ char *find_property(struct section *sect, char *name)
 	return NULL;
 }
 
-char *get_property(struct section *sections, char *sectname, char *propname, char *defval)
+char *get_property(struct section *sections, const char *sectname, const char *propname, const char *defval)
 {
-	struct section *sect;
+	const struct section *sect;
 	char *val;
 
 	sect = find_section(sections, sectname);
-	if (!sect) return defval;
+	// must return a pointer that can be freed!
+	if (!sect) return strdup(defval);
 
 	val = find_property(sect, propname);
-	return val ? val : defval;
+	// must return a pointer that can be freed!
+	return val ? val : strdup(defval);
 }
 
-int get_numeric_property(struct section *sections, char *sectname, char *propname, int defval)
+int get_numeric_property(struct section *sections, const char *sectname, const char *propname, int defval)
 {
-	char *val;
+	const char *val;
 
 	val = get_property(sections, sectname, propname, NULL);
 	return val ? atoi(val) : defval;
@@ -253,9 +255,9 @@ struct section *parse_properties(char *props)
 	return secthead;
 }
 
-int dump_section_properties(struct section *sections, char *sectname)
+int dump_section_properties(struct section *sections, const char *sectname)
 {
-	struct section *sect;
+	const struct section *sect;
 	struct property *prop;
 
 	sect = find_section(sections, sectname);
@@ -302,7 +304,7 @@ void list_properties(int f, struct section *sect)
 #include <sys/stat.h>
 #include <stdio.h>
 
-struct section *read_properties(char *filename)
+struct section *read_properties(const char *filename)
 {
 	FILE *f;
 	int size, siz;
