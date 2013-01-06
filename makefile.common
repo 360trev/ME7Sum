@@ -30,4 +30,10 @@ clean:	$(SUBDIRS)
 	$(ECHO) Deleting $(OBJ) $(DEPS) $(LIB) $(EXE) ...
 	$(DEBUG)-$(RM) $(OBJ) $(DEPS) $(LIB) $(EXE)
 
+.PHONY: force
+.compiler_flags: force
+	@echo '$(CDEFS)' | cmp -s - $@ || echo '$(CDEFS)' > $@
+
+$(OBJ): .compiler_flags
+
 -include $(DEPS)

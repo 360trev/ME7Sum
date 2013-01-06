@@ -4,3 +4,4 @@
 *.a
 *.exe
 me7sum
+.compiler_flags
