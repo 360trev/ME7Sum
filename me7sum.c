@@ -513,12 +513,12 @@ static int GetRomDump(const struct ImageHandle *ih, struct section *osconfig)
 static int FindMainCRCData(const struct ImageHandle *ih, const char *what,
 	const uint8_t *n, const uint8_t *m, int len,	// needle, mask, len of needle/mask
 	int off_l, int off_h,							// where to find hi/lo (short word offset into find array)
-	uint32_t *offset, int offset_len,				// array to store discovered offsets, len of array
+	uint32_t *offset, size_t offset_len,				// array to store discovered offsets, len of array
 	uint32_t *where)								// address of match (ONLY if single match), NULL if not needed
 {
 	/* Note that off_l and off_h are SHORT WORD offsets, i.e. 1 == 2 bytes */
 
-	int i, found=0;
+	size_t i, found=0;
 	uint32_t last_where=0;
 
 	for(i=0;i+len<ih->len;i+=2)
@@ -555,7 +555,7 @@ static int FindMainCRCData(const struct ImageHandle *ih, const char *what,
 static int FindMainCRCPreBlk(const struct ImageHandle *ih)
 {
 	int found;
-	uint32_t offset;
+	uint32_t offset=0;
 	uint32_t where=0;
 	//                                LL    LL                HH    HH          s
 	uint8_t needle[] = {0xE6, 0xFC, 0x00, 0x00, 0xE6, 0xFD, 0x00, 0x00, 0xE0, 0x0E, 0xDA, 0x00, 0x00, 0x00, 0xF6, 0xF4};
