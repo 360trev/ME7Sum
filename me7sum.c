@@ -518,7 +518,7 @@ static int FindMainCRCData(const struct ImageHandle *ih, const char *what,
 {
 	/* Note that off_l and off_h are SHORT WORD offsets, i.e. 1 == 2 bytes */
 
-	size_t i, found=0;
+	int i, found=0;
 	uint32_t last_where=0;
 
 	for(i=0;i+len<ih->len;i+=2)
