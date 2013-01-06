@@ -172,6 +172,7 @@ int main(int argc, char **argv)
 
 	// information about the tool
 	printf("ME7Tool [ Management tool for Bosch ME7.x firmwares]\n");
+	printf("Version %s\n", __GIT_VERSION);
 	printf("Inspiration from Andy Whittaker's tools and information\n");
 	printf("Written by 360trev and nyet [BSD License Open Source]. \n\n");
 

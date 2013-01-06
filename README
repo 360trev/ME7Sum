@@ -25,7 +25,7 @@ BUILDING:
 
 Under unix or cygwin, "make" should work.
 
-Under Windows MSVSS/nmake , type "prep.cmd" then "nmake"
+Under Windows MSVSS/nmake , type "build clean" then "build"
 
 RUNNING:
 --------
