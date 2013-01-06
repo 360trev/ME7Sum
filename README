@@ -9,6 +9,7 @@ with:
 4Z7907551AA.bin
 4Z7907551R.bin
 4Z7907551S.bin
+4Z7907551T.bin
 ferrari360.bin
 
 For testing, regions can be overriden in an ini file. See sample.ini for
