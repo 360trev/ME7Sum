@@ -5,7 +5,7 @@
 #include "os/os.h"
 #include "inifile_prop.h"
 
-uint32_t get_property_value(struct section *sections, const char const *sectname, const char *propname, const char *def)
+uint32_t get_property_value(struct section *sections, const char *sectname, const char *propname, const char *def)
 {
 	uint32_t val=0;
 	uint32_t defval=0;
