@@ -3,5 +3,6 @@
 *.obj
 *.a
 *.exe
+*.zip
 me7sum
 .compiler_flags
