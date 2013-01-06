@@ -11,8 +11,8 @@ with:
 4Z7907551S.bin
 ferrari360.bin
 
-For testing, regions can be overriden in an ini file. See sample.ini for
-available block/image options, and bins/ferrari360.ini for an example of using
+For testing, regions can be overridden in an ini file. See sample.ini for
+available block/image options, and ferrari360.ini for an example of using
 the info and dump sections.
 
 Feel free to contribute to the project!
