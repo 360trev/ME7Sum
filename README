@@ -6,10 +6,11 @@ It is a tool written in C for management of Bosch ME7 firmware dumps.
 It should generally autodetect checksum/CRC blocks, but is known not to work
 with:
 
-4Z7907551AA.bin
+4Z7907551N.bin
 4Z7907551R.bin
 4Z7907551S.bin
 4Z7907551T.bin
+4Z7907551AA.bin
 ferrari360.bin
 
 For testing, regions can be overridden in an ini file. See sample.ini for
