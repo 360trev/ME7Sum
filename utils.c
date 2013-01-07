@@ -61,7 +61,7 @@ uint8_t *load_file(const char *filename, size_t *filelen)
 	*filelen = size;		/* return size of file to caller */
 
 	/* alloc buffer for file */
-	printf("þ Allocating buffer of %zd bytes\n",size);
+	printf("þ Allocating buffer of %d bytes\n",(int)size);
 	data = (uint8_t *)malloc(size);
 	if(data == 0) { printf("\nfailed to allocate memory to load module\n"); fclose(fp); return 0; }
 
@@ -70,7 +70,7 @@ uint8_t *load_file(const char *filename, size_t *filelen)
 	bytesRead = fread(data, 1, size, fp);
 
 	/* validate it all loaded correctly */
-	printf("þ Validating size correct %zd=%zd\n",bytesRead,size);
+	printf("þ Validating size correct %d=%d\n",(int)bytesRead,(int)size);
 	if(bytesRead != size) { printf("\nfailed to load module into buffer\n"); free(data); fclose(fp); return 0; }
 
 	/* close the file */

@@ -12,7 +12,7 @@ GIT_VERSION = $(shell sh -c 'git describe --abbrev=4 --dirty --always')
 ifeq ($(findstring CYGWIN,$(UNAME)),CYGWIN)
 EXE_EXT = .exe
 CC	= i686-pc-mingw32-gcc
-CDEFS	+= -D_GNU_SOURCE=1
+#CDEFS	+= -D_GNU_SOURCE=1
 endif
 
 SRC     = $(notdir $(foreach dir, ., $(wildcard $(dir)/*.c)))

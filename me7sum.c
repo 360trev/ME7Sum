@@ -859,7 +859,7 @@ static int NormalizeRange(const struct ImageHandle *ih, struct Range *r)
 	if(r->start>=ih->len || r->end>=ih->len)
 	{
 		// The checksum block is outside our range
-		printf(" ERROR: INVALID STARTADDDR/ENDADDR: 0x%x/0x%x is past 0x%zx\n", r->start, r->end, ih->len);
+		printf(" ERROR: INVALID STARTADDDR/ENDADDR: 0x%x/0x%x is past 0x%x\n", r->start, r->end, (int)ih->len);
 		return -1;
 	}
 
