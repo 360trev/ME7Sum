@@ -1016,6 +1016,7 @@ static int DoChecksumBlk(struct ImageHandle *ih, uint32_t nStartBlk)
 	// read the ROM byte by byte to make this code endian independant
 	// C16x processors are little endian
 	struct MultipointDescriptor desc;
+	struct MultipointDescriptor *pDesc;
 	uint32_t nCalcChksum;
 	int errors=0;
 
@@ -1075,9 +1076,10 @@ static int DoChecksumBlk(struct ImageHandle *ih, uint32_t nStartBlk)
 		return -1;
 	}
 
-	desc.csum.v = nCalcChksum;
-	desc.csum.iv = ~nCalcChksum;
-	memcpy_to_le32(ih->d.u8+nStartBlk, &desc, sizeof(desc));
+	desc.csum.v = htole32(nCalcChksum);
+	desc.csum.iv = htole32(~nCalcChksum);
+	pDesc=(struct MultipointDescriptor *)(ih->d.u8+nStartBlk);
+	memcpy_to_le32(&pDesc->csum, &desc.csum, sizeof(desc.csum));
 
 	printf(" ** FIXED! **\n");
 	ErrorsCorrected+=errors;
