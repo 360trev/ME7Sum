@@ -1076,8 +1076,8 @@ static int DoChecksumBlk(struct ImageHandle *ih, uint32_t nStartBlk)
 		return -1;
 	}
 
-	desc.csum.v = htole32(nCalcChksum);
-	desc.csum.iv = htole32(~nCalcChksum);
+	desc.csum.v = nCalcChksum;
+	desc.csum.iv = ~nCalcChksum;
 	pDesc=(struct MultipointDescriptor *)(ih->d.u8+nStartBlk);
 	memcpy_to_le32(&pDesc->csum, &desc.csum, sizeof(desc.csum));
 
