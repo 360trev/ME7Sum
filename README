@@ -25,8 +25,8 @@ the info and dump sections.
 Feel free to contribute to the project!
 
 http://nefariousmotorsports.com/forum/index.php?topic=2993.0title=
-https://github.com/360trev/ME7Sum
-https://github.com/nyetwurk/ME7Sum
+https://github.com/360trev/ME7Sum/
+https://github.com/nyetwurk/ME7Sum/
 
 Binary releases are available here:
 http://nyetwurk.github.com/ME7Sum/
@@ -34,24 +34,24 @@ http://nyetwurk.github.com/ME7Sum/
 
 BUILDING:
 ---------
-
 Under unix or cygwin, "make" should work.
 
 Under Windows MSVSS/nmake , type "build clean" then "build"
+
 
 RUNNING:
 --------
 To check image.bin:
 
- me7sum image.bin
+  me7sum image.bin
 
 To override detected checksum/CRC blocks, and/or display dump information:
 
- me7sum -i image.ini image.bin
+  me7sum -i image.ini image.bin
 
 To output corrected checksums (the "-i" option is still available)
 
- me7sum [-i image.ini] image.bin out.bin
+  me7sum [-i image.ini] image.bin out.bin
 
 Note that if me7sum cannot completely detect checksum/CRC locations correctly,
 it will not output a file!
