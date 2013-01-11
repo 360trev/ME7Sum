@@ -4,13 +4,16 @@ freeware license possible. No warranty implied or given.
 It is a tool written in C for management of Bosch ME7.1 firmware dumps.
 
 It should generally autodetect checksum/CRC blocks, but is known not to work
-with:
+with ME7.1.1, eg:
 
 4Z7907551N.bin
 4Z7907551R.bin
 4Z7907551S.bin
 4Z7907551T.bin
 4Z7907551AA.bin
+
+Or non VAG Motronic bins, eg:
+
 ferrari360.bin
 
 ME7.5 is also currently unsupported.
@@ -21,8 +24,13 @@ the info and dump sections.
 
 Feel free to contribute to the project!
 
+http://nefariousmotorsports.com/forum/index.php?topic=2993.0title=
 https://github.com/360trev/ME7Sum
 https://github.com/nyetwurk/ME7Sum
+
+Binary releases are available here:
+http://nyetwurk.github.com/ME7Sum/
+
 
 BUILDING:
 ---------
