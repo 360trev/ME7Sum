@@ -7,7 +7,7 @@ CFLAGS	= -Wall -O3 -Werror -MD $(CDEFS)
 CDEFS	+= -D__GIT_VERSION=\"$(GIT_VERSION)\"
 
 UNAME       = $(shell uname -s)
-GIT_VERSION = $(shell sh -c 'git describe --abbrev=4 --dirty --always')
+GIT_VERSION = $(shell sh -c 'git describe --tags --abbrev=4 --dirty --always')
 
 ifeq ($(findstring CYGWIN,$(UNAME)),CYGWIN)
 EXE_EXT = .exe
