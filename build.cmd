@@ -18,6 +18,6 @@ GOTO Common
 :Common
 CALL "%PROGPATH%\Microsoft Visual Studio %VSVER%\VC\vcvarsall.bat" x86
 
-for /f "usebackq" %%i in ( `git describe "--abbrev=4" --dirty --always` ) do SET GIT_VERSION=%%i
+for /f "usebackq" %%i in ( `git describe --tags "--abbrev=4" --dirty --always` ) do SET GIT_VERSION=%%i
 
 nmake %1
