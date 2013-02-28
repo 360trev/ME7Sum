@@ -66,8 +66,6 @@ Under unix or cygwin, "make" should work.
 
 Under Windows MSVSS/nmake , type "build clean" then "build"
 
-Under unix or cygwin, "make" should work.
-
 CONTRIBUTING:
 -------------
 Feel free to contribute to the project!
