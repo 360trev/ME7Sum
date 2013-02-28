@@ -2,7 +2,7 @@
 *.o
 *.obj
 *.a
-*.exe
 *.zip
 me7sum
+me7sum.exe
 .compiler_flags

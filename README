@@ -3,6 +3,39 @@ freeware license possible. No warranty implied or given.
 
 It is a tool written in C for management of Bosch ME7.1 firmware dumps.
 
+The latest binary releases are always available here:
+http://nyetwurk.github.com/ME7Sum/
+
+RUNNING:
+--------
+
+*********************************
+** THIS PROGRAM HAS KNOWN BUGS **
+*********************************
+
+To check image.bin:
+
+  ME7Check image.bin
+  me7sum image.bin
+
+To override detected checksum/CRC blocks, and/or display dump information:
+
+  me7sum [-i image.ini] image.bin
+
+To output corrected checksums (the "-i" option is still available, but optional)
+
+  me7sum [-i image.ini] image.bin out.bin
+
+** If in doubt, omit the -i option. You shouldn't use it unless you know what
+you are doing. **
+
+Note that if me7sum cannot completely detect checksum/CRC locations correctly,
+it will not output a file!
+
+** Make sure to check all bins with ME7Check.exe before flashing them! **
+
+KNOWN ISSUES:
+-------------
 It should generally autodetect checksum/CRC blocks, but is known not to work
 with ME7.1.1, eg:
 
@@ -16,21 +49,16 @@ Or non VAG Motronic bins, eg:
 
 ferrari360.bin
 
+There are also various ME7.1 checksum areas that are not correctly
+detected/supported ("ROMSYS" according to ME7Check):
+
+http://nefariousmotorsports.com/forum/index.php?topic=2993.msg31226#msg31226
+
 ME7.5 is also currently unsupported.
 
 For testing, regions can be overridden in an ini file. See sample.ini for
 available block/image options, and ferrari360.ini for an example of using
 the info and dump sections.
-
-Feel free to contribute to the project!
-
-http://nefariousmotorsports.com/forum/index.php?topic=2993.0title=
-https://github.com/360trev/ME7Sum/
-https://github.com/nyetwurk/ME7Sum/
-
-Binary releases are available here:
-http://nyetwurk.github.com/ME7Sum/
-
 
 BUILDING:
 ---------
@@ -38,20 +66,12 @@ Under unix or cygwin, "make" should work.
 
 Under Windows MSVSS/nmake , type "build clean" then "build"
 
+Under unix or cygwin, "make" should work.
 
-RUNNING:
---------
-To check image.bin:
+CONTRIBUTING:
+-------------
+Feel free to contribute to the project!
 
-  me7sum image.bin
-
-To override detected checksum/CRC blocks, and/or display dump information:
-
-  me7sum -i image.ini image.bin
-
-To output corrected checksums (the "-i" option is still available)
-
-  me7sum [-i image.ini] image.bin out.bin
-
-Note that if me7sum cannot completely detect checksum/CRC locations correctly,
-it will not output a file!
+http://nefariousmotorsports.com/forum/index.php?topic=2993.0title=
+https://github.com/360trev/ME7Sum/
+https://github.com/nyetwurk/ME7Sum/

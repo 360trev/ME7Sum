@@ -14,4 +14,4 @@ dist: force
 INIS=sample.ini bins/ferrari360.ini bins/8D0907551M.ini
 .PHONY: zip
 zip: dist
-	zip -j me7sum-$(GIT_VERSION).zip me7sum.exe README $(INIS)
+	zip -j me7sum-$(GIT_VERSION).zip me7sum.exe ME7Check.exe README $(INIS)
