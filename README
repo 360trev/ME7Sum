@@ -52,7 +52,7 @@ ferrari360.bin
 There are also various ME7.1 checksum areas that are not correctly
 detected/supported ("ROMSYS" according to ME7Check):
 
-http://nefariousmotorsports.com/forum/index.php?topic=2993.msg31226#msg31226
+http://nefariousmotorsports.com/forum/index.php?topic=3347.msg32324#msg32324
 
 ME7.5 is also currently unsupported.
 
@@ -72,6 +72,10 @@ CONTRIBUTING:
 -------------
 Feel free to contribute to the project!
 
+nyet's ME7Sum:
+http://nefariousmotorsports.com/forum/index.php?topic=3347.0title=
+https://github.com/nyetwurk/ME7Sum/
+
+360trev's ME7Sum:
 http://nefariousmotorsports.com/forum/index.php?topic=2993.0title=
 https://github.com/360trev/ME7Sum/
-https://github.com/nyetwurk/ME7Sum/
