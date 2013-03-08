@@ -67,7 +67,7 @@ struct MultipointDescriptor {
 struct rom_config {
 	int			readonly;
 	uint32_t	base_address;				/* rom base address */
-	uint32_t	multipoint_block_start;		/* start of multipoint block descriptors */
+	uint32_t	multipoint_block_start[2];	/* start of multipoint block descriptors (two sets, first one isn't always there) */
 	uint32_t	multipoint_block_len;		/* size of descriptors */
 	uint32_t	main_checksum_offset;		/* two start/end pairs, one at offset, other at offset+8 */
 	uint32_t	main_checksum_final;		/* two 4 byte checksum (one inv) for two blocks conctatenated above) */
@@ -101,7 +101,8 @@ static int ErrorsCorrected = 0;
 static PropertyListItem romProps[] = {
 	// get rom region information
 	{	GET_VALUE,  &Config.base_address,			"ignition", "rom_firmware_start",		"0x800000"},
-	{	GET_VALUE,  &Config.multipoint_block_start,	"ignition", "rom_checksum_block_start",	"0"},
+	{	GET_VALUE,  &Config.multipoint_block_start[0],	"ignition", "rom_checksum_block_start0",	"0"},
+	{	GET_VALUE,  &Config.multipoint_block_start[1],	"ignition", "rom_checksum_block_start",	"0"},
 	{	GET_VALUE,  &Config.multipoint_block_len,	"ignition", "rom_checksum_block_len",	"0x10"},
 	{	GET_VALUE,  &Config.main_checksum_offset,	"ignition", "rom_checksum_offset",		"0"},
 	{	GET_VALUE,  &Config.main_checksum_final,	"ignition", "rom_checksum_final",		"0"},
@@ -145,7 +146,7 @@ static int FindMainRomOffset(const struct ImageHandle *ih);
 static int FindMainRomFinal(const struct ImageHandle *ih);
 static int DoMainChecksum(struct ImageHandle *ih, uint32_t nOffset, uint32_t nCsumAddr);
 
-static int FindChecksumBlks(const struct ImageHandle *ih);
+static int FindChecksumBlks(const struct ImageHandle *ih, int which);
 static int DoChecksumBlk(struct ImageHandle *ih, uint32_t nStartBlk);
 
 /*
@@ -166,7 +167,7 @@ int main(int argc, char **argv)
 	char *inifile=NULL;
 	char *input=NULL;
 	char *output=NULL;
-	int c;
+	int i, c;
 	struct ImageHandle ih;
 	struct section *osconfig=NULL;
 
@@ -312,29 +313,33 @@ int main(int argc, char **argv)
 	//
 	// Step #3 Multi point checksums
 	//
-	printf("\nStep #3: Reading Multipoint Checksum Block...\n");
+	printf("\nStep #3: Reading Multipoint Checksum Blocks...\n");
 
-	if(Config.multipoint_block_start==0)
-	{
-		FindChecksumBlks(&ih);
-	}
-
-	if(Config.multipoint_block_start)
-	{
-		for(iTemp=0; iTemp<64; iTemp++)
+	for (i=0;i<2;i++) {
+		if(Config.multipoint_block_start[i]==0)
 		{
-			int result=0;
-			printf("%2d) ",iTemp+1);
-			fflush(stdout);
-			result = DoChecksumBlk(&ih, Config.multipoint_block_start+(Config.multipoint_block_len*iTemp));
-			if (result == 1) { break; } // end of blocks;
+			FindChecksumBlks(&ih, i);
 		}
-		printf("[%d x <16> = %d bytes]\n", iTemp, iTemp*16);
-	}
-	else
-	{
-		printf("Step #3: ERROR! Skipping Multipoint Checksum Block... UNDEFINED\n");
-		ErrorsUncorrectable++;
+
+		if(Config.multipoint_block_start[i])
+		{
+			for(iTemp=0; iTemp<64; iTemp++)
+			{
+				int result=0;
+				printf("%2d) ",iTemp+1);
+				fflush(stdout);
+				result = DoChecksumBlk(&ih, Config.multipoint_block_start[i]+(Config.multipoint_block_len*iTemp));
+				if (result == 1) { break; } // end of blocks;
+			}
+			printf("[%d x <16> = %d bytes]\n", iTemp, iTemp*16);
+		}
+		else
+		{
+			if (i!=0) {
+				printf("Step #3: ERROR! Skipping Multipoint Checksum Block... UNDEFINED\n");
+				ErrorsUncorrectable++;
+			}
+		}
 	}
 
 	DEBUG_EXIT_MULTIPOINT;
@@ -962,20 +967,31 @@ static int DoMainChecksum(struct ImageHandle *ih, uint32_t nOffset, uint32_t nCs
 	return 0;
 }
 
-static int FindChecksumBlks(const struct ImageHandle *ih)
+static int FindChecksumBlks(const struct ImageHandle *ih, int which)
 {
 	int i, found=0, offset=0;
 	uint32_t needle[2];
+	int size=0;
 
-	printf(" Searching for multipoint block descriptors...");
+	printf(" Searching for multipoint block descriptor #%d...",
+		which+1);
 	DEBUG_FLUSH_MULTIPOINT;
 
-	needle[0]=htole32(Config.base_address);
-	needle[1]=htole32(Config.base_address+0x3fff);
+	if (which==0) {
+		needle[0]=htole32(Config.base_address+0x24000);
+		/* actually, mp #1 isn't allowed to match this,
+		   its in mp #2 */
+		needle[1]=htole32(Config.base_address+0x27fff);
+		size=4;
+	} else {
+		needle[0]=htole32(Config.base_address);
+		needle[1]=htole32(Config.base_address+0x3fff);
+		size=8;
+	}
 
 	for(i=0;i+Config.multipoint_block_len<ih->len;i+=2)
 	{
-		i=search_image(ih, i, needle, NULL, sizeof(needle), 2);
+		i=search_image(ih, i, needle, NULL, size, 2);
 		if (i<0) break;
 		if (i+Config.multipoint_block_len<ih->len)
 		{
@@ -984,9 +1000,13 @@ static int FindChecksumBlks(const struct ImageHandle *ih)
 
 			if (desc->csum.v==~desc->csum.iv)
 			{
-				DEBUG_MULTIPOINT("Found possible multipoint descriptor #%d at 0x%x\n", found+1, i);
-				offset=i;
-				found++;
+				/* make sure we don't match the mp #2 when looking for #1 */
+				if(which || desc->r.end != needle[1]) {
+					DEBUG_MULTIPOINT("Found possible multipoint descriptor #%d at 0x%x\n", found+1, i);
+					DEBUG_MULTIPOINT("0x%x-0x%x\n", desc->r.start, desc->r.end);
+					offset=i;
+					found++;
+				}
 			}
 		}
 	}
@@ -999,14 +1019,15 @@ static int FindChecksumBlks(const struct ImageHandle *ih)
 
 		if (desc->csum.v==~desc->csum.iv)
 		{
-			DEBUG_MULTIPOINT("Found descriptor at 0x%x\n", offset);
-			Config.multipoint_block_start=offset;
+			DEBUG_MULTIPOINT("Found descriptor #%d at 0x%x\n", which+1,
+				offset);
+			Config.multipoint_block_start[which]=offset;
 			printf("OK\n");
 			return 0;
 		}
 	}
 
-	printf("FAIL\n");
+	printf(which==0?"SKIPPED\n":"FAIL\n");
 	return -1;
 }
 
