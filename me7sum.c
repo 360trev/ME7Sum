@@ -967,6 +967,8 @@ static int DoMainChecksum(struct ImageHandle *ih, uint32_t nOffset, uint32_t nCs
 	return 0;
 }
 
+/* which=0: MP block #1 */
+/* which=1: MP block #2 */
 static int FindChecksumBlks(const struct ImageHandle *ih, int which)
 {
 	int i, found=0, offset=0;
@@ -998,7 +1000,8 @@ static int FindChecksumBlks(const struct ImageHandle *ih, int which)
 			struct MultipointDescriptor *desc =
 				(struct MultipointDescriptor *)(ih->d.u8+i);
 
-			if (desc->csum.v==~desc->csum.iv)
+			/* for mp block 1, don't be picky about inv */
+			if ((which==0) || desc->csum.v==~desc->csum.iv)
 			{
 				/* make sure we don't match the mp #2 when looking for #1 */
 				if(which || desc->r.end != needle[1]) {
@@ -1017,7 +1020,8 @@ static int FindChecksumBlks(const struct ImageHandle *ih, int which)
 		struct MultipointDescriptor *desc =
 			(struct MultipointDescriptor *)(ih->d.u8+offset+Config.multipoint_block_len);
 
-		if (desc->csum.v==~desc->csum.iv)
+		/* for mp block 1, don't be picky about inv */
+		if ((which==0) || desc->csum.v==~desc->csum.iv)
 		{
 			DEBUG_MULTIPOINT("Found descriptor #%d at 0x%x\n", which+1,
 				offset);
