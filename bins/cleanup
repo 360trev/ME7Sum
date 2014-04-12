@@ -1,0 +1,22 @@
+#!/bin/bash
+for i in $*; do
+    box=$( strings $i | grep 551 | head -1 | cut -f 1 -d ' ')
+    ver=$( strings $i | grep 1037 | sed -e 's/1037/-/' )
+
+    [ -z "$box" ] && exit
+
+    outl=$box-$ver.bin
+    out=$box.bin
+
+    if [ "$i" = "$out" -o "$i" = "$outl" ]; then
+	echo $i \($outl\) ok
+    else
+	if [ ! -f "$out" ]; then
+	    echo git mv $i $out
+	elif [ ! -f "outl" ]; then
+	    echo git mv $i $outl
+	else
+	    echo failed
+	fi
+    fi
+done
