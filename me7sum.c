@@ -37,6 +37,7 @@
 
 #include "inifile_prop.h"
 #include "crc32.h"
+#include "str.h"
 #include "utils.h"
 
 //#define DEBUG_ROM_INFO
@@ -89,7 +90,9 @@ struct info_config {
 // globals
 static struct rom_config Config;
 static struct info_config InfoConfig;
+static int Verbose = 0;
 
+static int ChecksumsFound = 0;
 static int ErrorsUncorrectable = 0;
 static int ErrorsFound = 0;
 static int ErrorsCorrected = 0;
@@ -147,7 +150,7 @@ static int FindMainRomFinal(const struct ImageHandle *ih);
 static int DoMainChecksum(struct ImageHandle *ih, uint32_t nOffset, uint32_t nCsumAddr);
 
 static int FindChecksumBlks(const struct ImageHandle *ih, int which);
-static int DoChecksumBlk(struct ImageHandle *ih, uint32_t nStartBlk);
+static int DoChecksumBlk(struct ImageHandle *ih, uint32_t nStartBlk, struct strbuf *buf);
 
 /*
  * main()
@@ -156,7 +159,7 @@ static int DoChecksumBlk(struct ImageHandle *ih, uint32_t nStartBlk);
 
 static void usage(const char *prog)
 {
-	printf("Usage: %s [-i <config.ini>] <inrom.bin> [outrom.bin]\n", prog);
+	printf("Usage: %s [-v] [-i <config.ini>] <inrom.bin> [outrom.bin]\n", prog);
 	exit(-1);
 }
 
@@ -170,6 +173,7 @@ int main(int argc, char **argv)
 	int i, c;
 	struct ImageHandle ih;
 	struct section *osconfig=NULL;
+	struct strbuf buf={};
 
 	// information about the tool
 	printf("ME7Tool (%s) [ Management tool for Bosch ME7.x firmwares]\n",
@@ -179,10 +183,13 @@ int main(int argc, char **argv)
 
 	opterr=0;
 
-	while ((c = getopt(argc, argv, "i:")) != -1)
+	while ((c = getopt(argc, argv, "vi:")) != -1)
 	{
 		switch (c)
 		{
+			case 'v':
+				Verbose++;
+				break;
 			case 'i':
 				inifile=optarg;
 				break;
@@ -229,7 +236,12 @@ int main(int argc, char **argv)
 
 	// open the firmware file
 	printf("\nAttemping to open firmware file '%s'\n",input);
-	if (iload_file(&ih, input, 0))
+	i=iload_file(&ih, input, 0, &buf);
+	if (buf.pbuf) {
+		if (i || Verbose>1) printf("%s", buf.pbuf);
+		free(buf.pbuf);
+	}
+	if (i)
 	{
 		printf("failed to open firmware file '%s'\n",input);
 		goto out;
@@ -326,12 +338,17 @@ int main(int argc, char **argv)
 			for(iTemp=0; iTemp<64; iTemp++)
 			{
 				int result=0;
-				printf("%2d) ",iTemp+1);
-				fflush(stdout);
-				result = DoChecksumBlk(&ih, Config.multipoint_block_start[i]+(Config.multipoint_block_len*iTemp));
+				struct strbuf buf = {};
+				sbprintf(&buf, "%2d) ",iTemp+1);
+				result = DoChecksumBlk(&ih, Config.multipoint_block_start[i]+(Config.multipoint_block_len*iTemp), &buf);
+				if (buf.pbuf) {
+					if (result || Verbose>0) printf("%s", buf.pbuf);
+					free (buf.pbuf);
+				}
+
 				if (result == 1) { break; } // end of blocks;
 			}
-			printf("[%d x <16> = %d bytes]\n", iTemp, iTemp*16);
+			printf(" Multipoint #%d: [%d blocks x <16> = %d bytes]\n", i, iTemp, iTemp*16);
 		}
 		else
 		{
@@ -344,6 +361,8 @@ int main(int argc, char **argv)
 
 	DEBUG_EXIT_MULTIPOINT;
 
+	printf("\n*** Found %d checksums in %s\n", ChecksumsFound, input);
+
 	if(ErrorsUncorrectable)
 	{
 		printf("\n*** ABORTING! %d uncorrectable error(s) in %s! ***\n", ErrorsUncorrectable, input);
@@ -352,9 +371,14 @@ int main(int argc, char **argv)
 
 	if(output && ErrorsCorrected > 0)
 	{
+		struct strbuf buf={};
 		printf("\nAttemping to output corrected firmware file '%s'\n",output);
 		// write crc corrected file out
-		save_file(output,ih.d.p,ih.len);
+		save_file(output,ih.d.p,ih.len, &buf);
+		if(buf.pbuf) {
+			printf("%s", buf.pbuf);
+			free(buf.pbuf);
+		}
 	}
 
 out:
@@ -743,6 +767,7 @@ static int DoMainCRCs(struct ImageHandle *ih)
 				nCRC=le32toh(*p32);
 
 				printf(" @%05x CRC: %08X CalcCRC: %08X%s", nCRCAddr, nCRC, nCalcCRC, nCalcCRCSeed?"(r)":"   ");
+				ChecksumsFound ++;
 
 				if (nCalcCRC != nCRC)
 				{
@@ -940,7 +965,7 @@ static int DoMainChecksum(struct ImageHandle *ih, uint32_t nOffset, uint32_t nCs
 	}
 
 	printf(" CalcChk: 0x%08X", nCalcChksum);
-
+	ChecksumsFound ++;
 	if(csum.v != nCalcChksum) { errors++; }
 
 	if(!errors)
@@ -1036,7 +1061,7 @@ static int FindChecksumBlks(const struct ImageHandle *ih, int which)
 }
 
 // Reads the individual checksum blocks that start at nStartBlk
-static int DoChecksumBlk(struct ImageHandle *ih, uint32_t nStartBlk)
+static int DoChecksumBlk(struct ImageHandle *ih, uint32_t nStartBlk, struct strbuf *buf)
 {
 	// read the ROM byte by byte to make this code endian independant
 	// C16x processors are little endian
@@ -1045,12 +1070,11 @@ static int DoChecksumBlk(struct ImageHandle *ih, uint32_t nStartBlk)
 	uint32_t nCalcChksum;
 	int errors=0;
 
-	printf("<%x> ",nStartBlk);
-	fflush(stdout);
+	sbprintf(buf, "<%x> ",nStartBlk);
 
 	if(nStartBlk + sizeof(desc) >= ih->len)
 	{
-		printf(" ERROR! INVALID STARTBLK/LEN 0x%x/%ld ** NOT OK **\n", nStartBlk, (long int)ih->len);
+		sbprintf(buf, " ERROR! INVALID STARTBLK/LEN 0x%x/%ld ** NOT OK **\n", nStartBlk, (long int)ih->len);
 		ErrorsUncorrectable++;
 		return -1;	// Uncorrectable Error
 	}
@@ -1064,32 +1088,32 @@ static int DoChecksumBlk(struct ImageHandle *ih, uint32_t nStartBlk)
 		return -1;
 	}
 
-	printf(" Adr: 0x%06X-0x%06X ", desc.r.start, desc.r.end);
-	fflush(stdout);
+	sbprintf(buf, " Adr: 0x%06X-0x%06X ", desc.r.start, desc.r.end);
 
 	if(desc.r.start==0xffffffff)
 	{
-		printf(" END\n");
+		sbprintf(buf, " END\n");
 		return 1;	// end of blks
 	}
 
-	printf("Chk: 0x%08X", desc.csum.v);
+	sbprintf(buf, "Chk: 0x%08X", desc.csum.v);
 
 	if(desc.csum.v != ~desc.csum.iv)
 	{
-		printf("  ~0x%08X INV NOT OK", desc.csum.iv);
+		sbprintf(buf, "  ~0x%08X INV NOT OK", desc.csum.iv);
 		errors++;
 	}
 
 	// calc checksum
 	nCalcChksum = CalcChecksumBlk(ih, &desc.r);
 
-	printf(" CalcChk: 0x%08X", nCalcChksum);
+	sbprintf(buf, " CalcChk: 0x%08X", nCalcChksum);
+	ChecksumsFound ++;
 	if(desc.csum.v != nCalcChksum) { errors++; }
 
 	if (!errors)
 	{
-		printf("  OK\n");
+		sbprintf(buf, "  OK\n");
 		return 0;
 	}
 
@@ -1097,7 +1121,7 @@ static int DoChecksumBlk(struct ImageHandle *ih, uint32_t nStartBlk)
 
 	if (Config.readonly)
 	{
-		printf(" ** NOT OK **\n");
+		sbprintf(buf, " ** NOT OK **\n");
 		return -1;
 	}
 
@@ -1106,7 +1130,7 @@ static int DoChecksumBlk(struct ImageHandle *ih, uint32_t nStartBlk)
 	pDesc=(struct MultipointDescriptor *)(ih->d.u8+nStartBlk);
 	memcpy_to_le32(&pDesc->csum, &desc.csum, sizeof(desc.csum));
 
-	printf(" ** FIXED! **\n");
+	sbprintf(buf, " ** FIXED! **\n");
 	ErrorsCorrected+=errors;
 	return 0;
 }

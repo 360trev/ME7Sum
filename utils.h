@@ -25,6 +25,7 @@
 
 #include <string.h>
 #include <stdint.h>
+#include "str.h"
 
 struct ImageHandle {
 	union {
@@ -76,10 +77,10 @@ struct ImageHandle {
 }
 #endif
 
-int iload_file(struct ImageHandle *ih, const char *fname, int rw);
+int iload_file(struct ImageHandle *ih, const char *fname, int rw, struct strbuf *buf);
 int ifree_file(struct ImageHandle *ih);
-int save_file(const char *filename, const uint8_t *filebuf, size_t filelen);
-uint8_t *load_file(const char *filename, size_t *filelen);
+int save_file(const char *filename, const uint8_t *filebuf, size_t filelen, struct strbuf *buf);
+uint8_t *load_file(const char *filename, size_t *filelen, struct strbuf *buf);
 
 int search_image(const struct ImageHandle *ih, size_t start, const void *needle, const void *mask, int len, int align);
 
