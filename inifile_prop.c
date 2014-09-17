@@ -52,7 +52,7 @@ int process_properties_list(struct section *osconfig, PropertyListItem *ci)
 		}
 		i++;
 	}
-	printf("Processed %d elements with %d issues\n",i,errCount);
+	// printf("Processed %d elements with %d issues\n",i,errCount);
 	return errCount;
 }
 
@@ -85,7 +85,7 @@ int process_info_list(struct section *osconfig, InfoListItem *ci)
 		}
 		i++;
 	}
-	printf("Processed %d elements with %d issues\n",i,errCount);
+	// printf("Processed %d elements with %d issues\n",i,errCount);
 	return errCount;
 }
 

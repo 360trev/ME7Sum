@@ -342,7 +342,7 @@ int main(int argc, char **argv)
 				sbprintf(&buf, "%2d) ",iTemp+1);
 				result = DoChecksumBlk(&ih, Config.multipoint_block_start[i]+(Config.multipoint_block_len*iTemp), &buf);
 				if (buf.pbuf) {
-					if (result || Verbose>0) printf("%s", buf.pbuf);
+					if (result<0 || Verbose>0) printf("%s", buf.pbuf);
 					free (buf.pbuf);
 				}
 
