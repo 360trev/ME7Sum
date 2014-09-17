@@ -179,7 +179,7 @@ int main(int argc, char **argv)
 	printf("ME7Tool (%s) [ Management tool for Bosch ME7.x firmwares]\n",
 		__GIT_VERSION);
 	printf("Inspiration from Andy Whittaker's tools and information\n");
-	printf("Written by 360trev and nyet [BSD License Open Source]. \n\n");
+	printf("Written by 360trev and nyet [BSD License Open Source].\n");
 
 	opterr=0;
 
@@ -220,7 +220,7 @@ int main(int argc, char **argv)
 
 	if (inifile)
 	{
-		printf("Attemping to open firmware config file '%s'\n",inifile);
+		printf("Attempting to open firmware config file '%s'\n",inifile);
 		// load properties file into memory
 		osconfig = read_properties(inifile);
 		if(osconfig == NULL)
@@ -235,7 +235,7 @@ int main(int argc, char **argv)
 	process_info_list(osconfig, romInfo);
 
 	// open the firmware file
-	printf("\nAttemping to open firmware file '%s'\n",input);
+	printf("\nAttempting to open firmware file '%s'\n",input);
 	i=iload_file(&ih, input, 0, &buf);
 	if (buf.pbuf) {
 		if (i || Verbose>1) printf("%s", buf.pbuf);
@@ -372,7 +372,7 @@ int main(int argc, char **argv)
 	if(output && ErrorsCorrected > 0)
 	{
 		struct strbuf buf={};
-		printf("\nAttemping to output corrected firmware file '%s'\n",output);
+		printf("\nAttempting to output corrected firmware file '%s'\n",output);
 		// write crc corrected file out
 		save_file(output,ih.d.p,ih.len, &buf);
 		if(buf.pbuf) {
