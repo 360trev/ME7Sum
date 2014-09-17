@@ -31,7 +31,7 @@ int chomp_crlf(char *str, int len)
 int chomp(char *str)
 {
     int len=strlen(str);
-    while ((len > 0) && isspace(str[len-1]))
+    while ((len > 0) && isspace((unsigned char)str[len-1]))
 	str[--len] = '\0';
     return len;
 }
@@ -39,7 +39,7 @@ int chomp(char *str)
 int chompn(char *str, int len)
 {
     len=strnlen(str,len);
-    while ((len > 0) && isspace(str[len-1]))
+    while ((len > 0) && isspace((unsigned char)str[len-1]))
 	str[--len] = '\0';
     return len;
 }
@@ -181,7 +181,7 @@ static int str_is_xdigit(char *str, int len)
     int i;
 
     for(i = 0; i < len; i++) {
-	if (!isxdigit(str[i]))
+	if (!isxdigit((unsigned char)str[i]))
 	    return 0;
     }
     return 1;
@@ -237,7 +237,7 @@ int str_is_digit(char *str, int len)
     int i;
 
     for(i = 0; i < len; i++) {
-	if (!isdigit(str[i]))
+	if (!isdigit((unsigned char)str[i]))
 	    return 0;
     }
     return 1;
@@ -266,7 +266,7 @@ int iszero(const void *buf, int len)
 int isempty(const char *buf, int len)
 {
     while (len-- > 0)
-	if (!isspace(*buf++))
+	if (!isspace((unsigned char)(*buf++)))
 	    return 0;
     return 1;
 }
@@ -288,7 +288,7 @@ int comma_separated(char *buf, int space)
 
     for (i=0,j=0; i<len; i++,j++)
     {
-        if (!isdigit(buf[i]))
+        if (!isdigit((unsigned char)buf[i]))
             return 0;
         if (j==3)
         {
@@ -323,7 +323,7 @@ void str_clean(char *str, int len)
 {
     int index = 0;
     for(index = 0;index < len; index++) {
-        if (str[index] && !isprint(str[index])) {
+        if (str[index] && !isprint((unsigned char)str[index])) {
             str[index] = '?';
         }
     }
