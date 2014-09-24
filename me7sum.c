@@ -617,6 +617,33 @@ static int FindMainCRCData(const struct ImageHandle *ih, const char *what,
 	return found;
 }
 
+//
+// Calculate the Bosch Motronic ME71 checksum for the given range
+//
+static uint32_t CalcChecksumBlk8(const struct ImageHandle *ih, const struct Range *r)
+{
+	uint32_t	nChecksum = 0, nIndex;
+
+	for(nIndex = r->start; nIndex <= r->end; nIndex++)
+	{
+		nChecksum+=le16toh(ih->d.u8[nIndex]);
+	}
+
+	return nChecksum;
+}
+
+static uint32_t CalcChecksumBlk16(const struct ImageHandle *ih, const struct Range *r)
+{
+	uint32_t	nChecksum = 0, nIndex;
+
+	for(nIndex = r->start/2; nIndex <= r->end/2; nIndex++)
+	{
+		nChecksum+=le16toh(ih->d.u16[nIndex]);
+	}
+
+	return nChecksum;
+}
+
 /* Actual work */
 static int FindROMSYS(struct ImageHandle *ih)
 {
@@ -906,13 +933,12 @@ static int DoMainCSMs(struct ImageHandle *ih)
 	{
 		if(Config.crc[i].r.start && Config.crc[i].r.end)
 		{
-			int j;
+			printf(" %d) Adr: 0x%06X-0x%06X", i,
+				Config.crc[i].r.start, Config.crc[i].r.end);
 
-			printf(" %d) Adr: 0x%06X-0x%06X", i, Config.crc[i].r.start, Config.crc[i].r.end);
+			/* bytewise checksum */
+			nCalcCSM += CalcChecksumBlk8(ih, &Config.crc[i].r);
 
-			for(j=Config.crc[i].r.start;j<=Config.crc[i].r.end;j++) {
-				nCalcCSM+=ih->d.u8[j];
-			}
 			printf(" CalcCSM: %08X\n", nCalcCSM);
 		}
 	}
@@ -1053,21 +1079,6 @@ static int NormalizeRange(const struct ImageHandle *ih, struct Range *r)
 }
 
 //
-// Calculate the Bosch Motronic ME71 checksum for the given range
-//
-static uint32_t CalcChecksumBlk(const struct ImageHandle *ih, const struct Range *r)
-{
-	uint32_t	nChecksum = 0, nIndex;
-
-	for(nIndex = r->start/2; nIndex <= r->end/2; nIndex++)
-	{
-		nChecksum+=le16toh(ih->d.u16[nIndex]);
-	}
-
-	return nChecksum;
-}
-
-//
 // Reads the main checksum for the whole ROM
 //
 static int DoMainChecksum(struct ImageHandle *ih, uint32_t nOffset, uint32_t nCsumAddr)
@@ -1094,21 +1105,21 @@ static int DoMainChecksum(struct ImageHandle *ih, uint32_t nOffset, uint32_t nCs
 	}
 
 	// block 1
-	nCalcChksum = CalcChecksumBlk(ih, &r[0]);
+	nCalcChksum = CalcChecksumBlk16(ih, &r[0]);
 	printf(" 1) Adr: 0x%06X-0x%06X\n", r[0].start, r[0].end);
 
 	if (r[0].end + 1 != r[1].start)
 	{
 		struct Range sr = {.start = r[0].end+1, .end = r[1].start-1};
 		//struct Range sr = {.start = 0x10000, .end = 0x1FFFF};
-		uint32_t ss = CalcChecksumBlk(ih, &sr);
+		uint32_t ss = CalcChecksumBlk16(ih, &sr);
 		uint32_t sc = crc32(0, ih->d.u8+sr.start, sr.end-sr.start+1);
 		printf("         0x%06X-0x%06X  SKIPPED CalcChk: 0x%08X CalcCRC: 0x%08X\n",
 			sr.start, sr.end, ss, sc);
 	}
 
 	// block 2
-	nCalcChksum2= CalcChecksumBlk(ih, &r[1]);
+	nCalcChksum2= CalcChecksumBlk16(ih, &r[1]);
 	printf(" 2) Adr: 0x%06X-0x%06X\n", r[1].start, r[1].end);
 
 	nCalcChksum += nCalcChksum2;
@@ -1265,7 +1276,7 @@ static int DoChecksumBlk(struct ImageHandle *ih, uint32_t nStartBlk, struct strb
 	}
 
 	// calc checksum
-	nCalcChksum = CalcChecksumBlk(ih, &desc.r);
+	nCalcChksum = CalcChecksumBlk16(ih, &desc.r);
 
 	sbprintf(buf, " CalcChk: 0x%08X", nCalcChksum);
 	ChecksumsFound ++;
