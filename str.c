@@ -11,6 +11,9 @@
 #define ASSERT assert
 #define MAC_DELIMITER(c) ( c == ':' || c == '-' )
 
+#ifdef _WIN32
+#define va_copy(d,s) ((d) = (s))
+#endif
 
 #if 0
 /** Strip all cr/lf from end of string. Modifies string in place */
@@ -133,7 +136,8 @@ int vsbprintf(struct strbuf *param, const char *fmt, va_list ap)
 
     while(1) {
         int rem = param->len - param->offset;
-	va_list cp = ap;
+	va_list cp;
+	va_copy(cp, ap);
         ret = vsnprintf(buf + param->offset, rem, fmt, cp);
 	va_end(cp);
         if(ret == -1) buf = realloc(buf, param->len *= 2);
