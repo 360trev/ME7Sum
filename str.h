@@ -17,6 +17,10 @@
 # define STR(x) X__STR(x)
 #endif
 
+#ifdef  __cplusplus
+extern "C" {
+#endif
+
 /** expanding string buffer for \ref sbprintf */
 struct strbuf {
     char *pbuf;
@@ -63,8 +67,10 @@ static inline int snputs(char *dest, const char *src, size_t n)
     return strnlen(dest, n);
 }
 
-
 void sbputs(struct strbuf *sb, const char *s);
 
+#ifdef  __cplusplus
+}
+#endif
 
 #endif /* STR_H */

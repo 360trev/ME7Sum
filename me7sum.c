@@ -184,7 +184,9 @@ int main(int argc, char **argv)
 	int i, c;
 	struct ImageHandle ih;
 	struct section *osconfig=NULL;
-	struct strbuf buf={};
+	struct strbuf buf;
+
+	memset(&buf, 0, sizeof(buf));
 
 	// information about the tool
 	printf("ME7Tool (%s) [ Management tool for Bosch ME7.x firmwares]\n",
@@ -372,7 +374,9 @@ int main(int argc, char **argv)
 			for(iTemp=0; iTemp<64; iTemp++)
 			{
 				int result=0;
-				struct strbuf buf = {};
+				struct strbuf buf;
+
+				memset(&buf, 0, sizeof(buf));
 				sbprintf(&buf, "%2d) ",iTemp+1);
 				result = DoChecksumBlk(&ih, Config.multipoint_block_start[i]+(Config.multipoint_block_len*iTemp), &buf);
 				if (buf.pbuf) {
@@ -405,7 +409,9 @@ int main(int argc, char **argv)
 
 	if(output && ErrorsCorrected > 0)
 	{
-		struct strbuf buf={};
+		struct strbuf buf;
+
+		memset(&buf, 0, sizeof(buf));
 		printf("\nAttempting to output corrected firmware file '%s'\n",output);
 		// write crc corrected file out
 		save_file(output,ih.d.p,ih.len, &buf);
@@ -1110,10 +1116,13 @@ static int DoMainChecksum(struct ImageHandle *ih, uint32_t nOffset, uint32_t nCs
 
 	if (r[0].end + 1 != r[1].start)
 	{
-		struct Range sr = {.start = r[0].end+1, .end = r[1].start-1};
+		struct Range sr;
+		uint32_t ss, sc;
+		sr.start = r[0].end+1;
+		sr.end = r[1].start-1;
 		//struct Range sr = {.start = 0x10000, .end = 0x1FFFF};
-		uint32_t ss = CalcChecksumBlk16(ih, &sr);
-		uint32_t sc = crc32(0, ih->d.u8+sr.start, sr.end-sr.start+1);
+	    ss = CalcChecksumBlk16(ih, &sr);
+		sc = crc32(0, ih->d.u8+sr.start, sr.end-sr.start+1);
 		printf("         0x%06X-0x%06X  SKIPPED CalcChk: 0x%08X CalcCRC: 0x%08X\n",
 			sr.start, sr.end, ss, sc);
 	}
