@@ -50,14 +50,20 @@ char *sbfill(struct strbuf *sb, char fill, int width);
 void sbfree(struct strbuf *sb);
 
 /* init sb with malloc'ed string. */
-static inline void strbuf_from_str(struct strbuf *sb, char *str)
+#ifdef _WIN32
+#define __INLINE __inline
+#else
+#define __INLINE static inline
+#endif
+
+__INLINE void strbuf_from_str(struct strbuf *sb, char *str)
 {
     sb->pbuf = str;
     sb->len = sb->offset = strlen(str);
 }
 
 /* safety string copy */
-static inline int snputs(char *dest, const char *src, size_t n)
+__INLINE int snputs(char *dest, const char *src, size_t n)
 {
     if (n<=0) return 0;
 

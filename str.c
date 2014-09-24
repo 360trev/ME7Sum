@@ -97,10 +97,14 @@ void sbensure(struct strbuf *sb, int n)
 
     buf = realloc(sb->pbuf, len);
     // ASSERT_INFO((buf != NULL), "%zu", len);
+#ifdef _WIN32
+    sb->len = len;
+#else
     usable = malloc_usable_size(buf);
-    sb->pbuf = buf;
     /* Take advantage of full usable allocation */
     sb->len = (usable > len) ? usable : len;
+#endif
+    sb->pbuf = buf;
 }
 
 /** Printf into an automatically extended string buffer */
@@ -119,16 +123,17 @@ int vsbprintf(struct strbuf *param, const char *fmt, va_list ap)
 	    param->len = 100;
 	buf = malloc(param->len);
 	// ASSERT_INFO((buf != NULL), "%zu", param->len);
+#ifndef _WIN32
 	/* Take advantage of full usable allocation */
 	usable = malloc_usable_size(buf);
 	if (param->len < usable)
 	    param->len = usable;
+#endif
     }
 
     while(1) {
         int rem = param->len - param->offset;
-	va_list cp;
-	va_copy(cp, ap);
+	va_list cp = ap;
         ret = vsnprintf(buf + param->offset, rem, fmt, cp);
 	va_end(cp);
         if(ret == -1) buf = realloc(buf, param->len *= 2);
@@ -136,9 +141,11 @@ int vsbprintf(struct strbuf *param, const char *fmt, va_list ap)
         else break;
 	//ASSERT_INFO((buf != NULL), "%zu", param->len);
 	/* Take advantage of full usable allocation */
+#ifndef _WIN32
 	usable = malloc_usable_size(buf);
 	if (param->len < usable)
 	    param->len = usable;
+#endif
     }
     param->offset += ret;
     param->pbuf = buf;
@@ -339,6 +346,13 @@ void sbfree(struct strbuf *sb)
 	sb->offset = sb->len = 0;
     }
 }
+
+#ifdef _WIN32
+static char *strtok_r(char *str, const char *delim, char **saveptr)
+{
+    return strtok(str, delim);
+}
+#endif
 
 int str_split(char *buf, char *argv[], int maxargc, const char *split)
 {
