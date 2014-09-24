@@ -140,8 +140,8 @@ int vsbprintf(struct strbuf *param, const char *fmt, va_list ap)
         else if(ret >= rem) buf = realloc(buf, param->len += ret);
         else break;
 	//ASSERT_INFO((buf != NULL), "%zu", param->len);
-	/* Take advantage of full usable allocation */
 #ifndef _WIN32
+	/* Take advantage of full usable allocation */
 	usable = malloc_usable_size(buf);
 	if (param->len < usable)
 	    param->len = usable;
