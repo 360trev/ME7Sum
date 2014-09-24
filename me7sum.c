@@ -41,6 +41,7 @@
 #include "utils.h"
 
 //#define DEBUG_ROM_INFO
+//#define DEBUG_ROMSYS_MATCHING
 //#define DEBUG_CRC_MATCHING
 //#define DEBUG_MAIN_MATCHING
 //#define DEBUG_MULTIPOINT_MATCHING
@@ -68,6 +69,9 @@ struct MultipointDescriptor {
 struct rom_config {
 	int			readonly;
 	uint32_t	base_address;				/* rom base address */
+
+	uint32_t	romsys;
+
 	uint32_t	multipoint_block_start[2];	/* start of multipoint block descriptors (two sets, first one isn't always there) */
 	uint32_t	multipoint_block_len;		/* size of descriptors */
 	uint32_t	main_checksum_offset;		/* two start/end pairs, one at offset, other at offset+8 */
@@ -76,6 +80,7 @@ struct rom_config {
 		struct Range r;
 		uint32_t	offset;
 	} crc[MAX_CRC_BLKS+1];					/* 0/4 is pre-region (for kbox and other) Up to 5 CRC blocks (total) to check */
+	uint32_t	csm_offset;				/* ME7.1.1 */
 };
 
 struct info_config {
@@ -140,13 +145,18 @@ static InfoListItem romInfo[] = {
 static int GetRomDump(const struct ImageHandle *ih, struct section *osconfig);
 static int GetRomInfo(const struct ImageHandle *ih, struct section *osconfig);
 
+static int FindROMSYS(struct ImageHandle *ih);
+static int DoROMSYS(struct ImageHandle *ih);
+
 static int FindMainCRCPreBlk(const struct ImageHandle *ih);
 static int FindMainCRCBlks(const struct ImageHandle *ih);
 static int FindMainCRCOffsets(const struct ImageHandle *ih);
+static int FindMainCSMOffsets(const struct ImageHandle *ih);
 static int DoMainCRCs(struct ImageHandle *ih);
+static int DoMainCSMs(struct ImageHandle *ih);
 
-static int FindMainRomOffset(const struct ImageHandle *ih);
-static int FindMainRomFinal(const struct ImageHandle *ih);
+static int FindMainProgramOffset(const struct ImageHandle *ih);
+static int FindMainProgramFinal(const struct ImageHandle *ih);
 static int DoMainChecksum(struct ImageHandle *ih, uint32_t nOffset, uint32_t nCsumAddr);
 
 static int FindChecksumBlks(const struct ImageHandle *ih, int which);
@@ -165,6 +175,7 @@ static void usage(const char *prog)
 
 int main(int argc, char **argv)
 {
+	int Step=0;
 	int	iTemp;
 	char *prog=argv[0];
 	char *inifile=NULL;
@@ -254,19 +265,37 @@ int main(int argc, char **argv)
 		goto out;
 	}
 
-	//
-	// Step #0 Show interesting ROM information
-	//
-
 	GetRomInfo(&ih, osconfig);
 	GetRomDump(&ih, osconfig);
 
 	DEBUG_EXIT_ROM;
 
 	//
-	// Step #1 Main ROM CRCs if specified
+	// Step #1 ROMSYS
 	//
-	printf("\nStep #1: Reading main ROM CRC...\n");
+	printf("\nStep #%d: Reading ROMSYS ..\n", ++Step);
+
+	if(Config.romsys==0)
+	{
+		FindROMSYS(&ih);
+	}
+
+	if(Config.romsys)
+	{
+		DoROMSYS(&ih);
+	}
+	else
+	{
+		printf("Step #%d: ERROR! Skipping ROMSYS.. UNDEFINED\n", Step);
+		ErrorsUncorrectable++;
+	}
+
+	DEBUG_EXIT_ROMSYS;
+
+	//
+	// Step #2 Main data checksums if specified
+	//
+	printf("\nStep #%d: Reading Main Data Checksums ..\n", ++Step);
 
 	if(Config.crc[0].r.start==0 && Config.crc[0].r.end==0)
 	{
@@ -281,33 +310,38 @@ int main(int argc, char **argv)
 	// note, crc0 and crc4 don't have offsets!
 	if(Config.crc[1].offset==0)
 	{
-		FindMainCRCOffsets(&ih);
+		if (FindMainCRCOffsets(&ih))	/* Detect if using CRC algo */
+			FindMainCSMOffsets(&ih);	/* Detect if using Checksum algo */
 	}
 
 	if(Config.crc[1].r.start && Config.crc[1].r.end && Config.crc[1].offset)
 	{
 		DoMainCRCs(&ih);
 	}
+	else if (Config.crc[1].r.start && Config.crc[1].r.end && Config.csm_offset)
+	{
+		DoMainCSMs(&ih);
+	}
 	else
 	{
-		printf("\nStep #1: ERROR! Skipping main ROM CRCs... UNDEFINED\n");
+		printf("\nStep #%d: ERROR! Skipping main data checksums ... UNDEFINED\n", Step);
 		ErrorsUncorrectable++;
 	}
 
 	DEBUG_EXIT_CRC;
 
 	//
-	// Step #2 Main ROM checksums
+	// Step #3 Main program checksums
 	//
-	printf("\nStep #2: Reading main ROM checksum...\n");
+	printf("\nStep #%d: Reading Main Program Checksums ..\n", ++Step);
 	if(Config.main_checksum_offset==0)
 	{
-		FindMainRomOffset(&ih);
+		FindMainProgramOffset(&ih);
 	}
 
 	if(Config.main_checksum_final==0)
 	{
-		FindMainRomFinal(&ih);
+		FindMainProgramFinal(&ih);
 	}
 
 	if (Config.main_checksum_offset && Config.main_checksum_final)
@@ -316,16 +350,16 @@ int main(int argc, char **argv)
 	}
 	else
 	{
-		printf("Step #2: ERROR! Skipping main ROM checksum... UNDEFINED\n");
+		printf("Step #%d: ERROR! Skipping Main Program Checksums.. UNDEFINED\n", Step);
 		ErrorsUncorrectable++;
 	}
 
 	DEBUG_EXIT_MAIN;
 
 	//
-	// Step #3 Multi point checksums
+	// Step #4 Multi point checksums
 	//
-	printf("\nStep #3: Reading Multipoint Checksum Blocks...\n");
+	printf("\nStep #%d: Reading Multipoint Checksum Blocks ..\n", ++Step);
 
 	for (i=0;i<2;i++) {
 		if(Config.multipoint_block_start[i]==0)
@@ -353,7 +387,7 @@ int main(int argc, char **argv)
 		else
 		{
 			if (i!=0) {
-				printf("Step #3: ERROR! Skipping Multipoint Checksum Block... UNDEFINED\n");
+				printf("Step #%d: ERROR! Skipping Multipoint Checksum Block... UNDEFINED\n", Step);
 				ErrorsUncorrectable++;
 			}
 		}
@@ -540,6 +574,7 @@ static int GetRomDump(const struct ImageHandle *ih, struct section *osconfig)
 	return 0;
 }
 
+/* NEEDLE/HAYSTACK util */
 static int FindMainCRCData(const struct ImageHandle *ih, const char *what,
 	const uint8_t *n, const uint8_t *m, int len,	// needle, mask, len of needle/mask
 	int off_l, int off_h,							// where to find hi/lo (short word offset into find array)
@@ -582,6 +617,18 @@ static int FindMainCRCData(const struct ImageHandle *ih, const char *what,
 	return found;
 }
 
+/* Actual work */
+static int FindROMSYS(struct ImageHandle *ih)
+{
+	Config.romsys=0x8030;
+	return 0;
+}
+
+static int DoROMSYS(struct ImageHandle *ih)
+{
+	return 0;
+}
+
 static int FindMainCRCPreBlk(const struct ImageHandle *ih)
 {
 	int found;
@@ -591,7 +638,7 @@ static int FindMainCRCPreBlk(const struct ImageHandle *ih)
 	uint8_t needle[] = {0xE6, 0xFC, 0x00, 0x00, 0xE6, 0xFD, 0x00, 0x00, 0xE0, 0x0E, 0xDA, 0x00, 0x00, 0x00, 0xF6, 0xF4};
 	uint8_t   mask[] = {0xff, 0xff, 0x00, 0x00, 0xff, 0xff, 0x00, 0xff, 0xff, 0x0f, 0xff, 0x00, 0x00, 0x00, 0xff, 0xff};
 
-	printf(" Searching for main ROM CRC pre block...");
+	printf(" Searching for main data CRC pre block...");
 	DEBUG_FLUSH_CRC;
 
 	found=FindMainCRCData(ih, "CRC pre block", needle, mask, sizeof(needle), 1, 3, &offset, 1, &where);
@@ -612,7 +659,7 @@ static int FindMainCRCPreBlk(const struct ImageHandle *ih)
 		DEBUG_CRC("Too many matches (%d). CRC block start find failed\n", found);
 	}
 
-	printf("skipped\n");
+	printf("missing\n");
 	return 0;
 }
 
@@ -627,7 +674,7 @@ static int FindMainCRCBlks(const struct ImageHandle *ih)
 	uint8_t n1[] = {0x10, 0x9B, 0xE6, 0xF4, 0x00, 0x00, 0xE6, 0xF5, 0x00, 0x00, 0x26, 0xF4};
 	uint8_t m1[] = {0xff, 0xff, 0xff, 0xff, 0x00, 0x00, 0xff, 0xff, 0x00, 0xff, 0xff, 0xff};
 
-	printf(" Searching for main ROM CRC blocks...");
+	printf(" Searching for main data checksum blocks...");
 	DEBUG_FLUSH_CRC;
 
 	found=FindMainCRCData(ih, "CRC block starts", n0, m0, sizeof(n0), 1, 3, offset, MAX_CRC_BLKS, NULL);
@@ -700,7 +747,7 @@ static int FindMainCRCOffsets(const struct ImageHandle *ih)
 	uint8_t needle[] = {0xF6, 0xF5, 0x00, 0x00, 0xE6, 0xF4, 0x00, 0x00, 0xE6, 0xF5, 0x00, 0x00, 0xDA, 0x00 /*, 0x00, 0x00, 0xe6, 0x00, 0x04, 0x02 */};
 	uint8_t   mask[] = {0xff, 0xff, 0x00, 0x00, 0xff, 0xff, 0x00, 0x00, 0xff, 0xff, 0x00, 0x00, 0xff, 0xff /*, 0x00, 0x00, 0xff, 0xff, 0xff, 0xff */};
 
-	printf(" Searching for main ROM CRC offsets...");
+	printf(" Searching for main data CRC offsets...");
 	DEBUG_FLUSH_CRC;
 
 	found=FindMainCRCData(ih, "CRC offset", needle, mask, sizeof(needle), 3, 5, offset, MAX_CRC_OFFSETS, NULL);
@@ -719,8 +766,10 @@ static int FindMainCRCOffsets(const struct ImageHandle *ih)
 	if (found!=3)
 	{
 		DEBUG_CRC("Did not find exactly 3 matches (got %d). CRC offset find failed\n", found);
-		memset(Config.crc, 0, sizeof(Config.crc));
-		printf("FAIL\n");
+		for(i=0;i<MAX_CRC_OFFSETS;i++) {
+			Config.crc[i].offset=0;
+		}
+		printf("missing\n");
 		return -1;
 	}
 
@@ -731,6 +780,32 @@ static int FindMainCRCOffsets(const struct ImageHandle *ih)
 		Config.crc[3].offset=0;
 	}
 
+	printf("OK\n");
+	return 0;
+}
+
+static int FindMainCSMOffsets(const struct ImageHandle *ih)
+{
+	int found;
+	uint32_t offset;
+	//                                                        LL    LL                HH    HH
+	uint8_t needle[] = {0xF8, 0xF9, 0x00, 0x00, 0xE6, 0xF4, 0x00, 0x00, 0xE6, 0xF5, 0x00, 0x00, 0xDA, 0x00 /*, 0x00, 0x00, 0xe6, 0x00, 0x04, 0x02 */};
+	uint8_t   mask[] = {0xff, 0xff, 0x00, 0x00, 0xff, 0xff, 0x00, 0x00, 0xff, 0xff, 0x00, 0x00, 0xff, 0xff /*, 0x00, 0x00, 0xff, 0xff, 0xff, 0xff */};
+
+	printf(" Searching for main data checksum offsets...");
+	DEBUG_FLUSH_CRC;
+
+	found=FindMainCRCData(ih, "Checksum offset", needle, mask, sizeof(needle), 3, 5, &offset, 1, NULL);
+
+	if (found!=1) {
+		DEBUG_CRC("Did not find exactly 1 match (got %d). Checksum offset find failed\n", found);
+		Config.csm_offset=0;
+		printf("FAIL\n");
+		return -1;
+	}
+
+	DEBUG_CRC("Found Checksum at 0x%x\n", offset);
+	Config.csm_offset=offset;
 	printf("OK\n");
 	return 0;
 }
@@ -803,13 +878,94 @@ static int DoMainCRCs(struct ImageHandle *ih)
 	return result;
 }
 
-static int FindMainRomOffset(const struct ImageHandle *ih)
+static int DoMainCSMs(struct ImageHandle *ih)
+{
+	int result=0;
+	int i;
+	uint32_t nCalcCSM = 0;
+	uint32_t nCSMAddr = Config.csm_offset;
+	uint32_t *p32;
+	uint32_t nCSM, nCSMinv;
+
+	if (nCSMAddr+4>ih->len)
+	{
+		printf(" @%05x INVALID ADDRESS\n", nCSMAddr);
+		return -1;
+	}
+
+	/* possibly unaligned, so we cant do tricks wtih ih->d.u32 */
+	p32 =(uint32_t *)(ih->d.u8 + nCSMAddr);
+	nCSM = le32toh(p32[0]);
+	nCSMinv = le32toh(p32[1]);
+
+	if (nCSM != ~nCSMinv)
+	{
+	}
+
+	for (i=1; i<5; i++)
+	{
+		if(Config.crc[i].r.start && Config.crc[i].r.end)
+		{
+			int j;
+
+			printf(" %d) Adr: 0x%06X-0x%06X", i, Config.crc[i].r.start, Config.crc[i].r.end);
+
+			for(j=Config.crc[i].r.start;j<=Config.crc[i].r.end;j++) {
+				nCalcCSM+=ih->d.u8[j];
+			}
+			printf(" CalcCSM: %08X\n", nCalcCSM);
+		}
+	}
+
+	printf(" @%05x CSM: %08X CalcCSM: %08X", nCSMAddr, nCSM, nCalcCSM);
+	ChecksumsFound ++;
+
+	if (nCalcCSM != nCSM)
+	{
+		ErrorsFound++;
+		if (Config.readonly)
+		{
+			printf("  ** NOT OK **\n");
+			result|=-1;
+		}
+		else
+		{
+			p32[0]=le32toh(nCalcCSM);
+			p32[1]=le32toh(~nCalcCSM);
+			ErrorsCorrected++;
+			printf(" ** FIXED **\n");
+		}
+	} else if (nCSM != ~nCSMinv) {
+		printf(" @%05x CSM: %08X CSMinv: %08X (%08X)", nCSMAddr, nCSM, nCSMinv, ~nCSMinv);
+
+		ErrorsFound++;
+		if (Config.readonly)
+		{
+			printf("  ** NOT OK **\n");
+			result|=-1;
+		}
+		else
+		{
+			p32[1]=le32toh(~nCSM);
+			ErrorsCorrected++;
+			printf(" ** FIXED **\n");
+		}
+	}
+
+	else
+	{
+		printf("  Main data checksum OK\n");
+	}
+	return result;
+}
+
+static int FindMainProgramOffset(const struct ImageHandle *ih)
 {
 	int i, found=0, offset=0;
 	uint32_t needle[4];
 	uint32_t mask[4];
 
-	printf(" Searching for main ROM checksum...");
+	printf(" Searching for main program checksum..");
 	DEBUG_FLUSH_MAIN;
 
 	needle[0]=htole32(Config.base_address);
@@ -845,7 +1001,7 @@ static int FindMainRomOffset(const struct ImageHandle *ih)
 	return -1;
 }
 
-static int FindMainRomFinal(const struct ImageHandle *ih)
+static int FindMainProgramFinal(const struct ImageHandle *ih)
 {
 	int offset=ih->len-0x20;
 	struct ChecksumPair *csum = (struct ChecksumPair *)(ih->d.u8+offset);
@@ -938,18 +1094,22 @@ static int DoMainChecksum(struct ImageHandle *ih, uint32_t nOffset, uint32_t nCs
 	}
 
 	// block 1
-	nCalcChksum = CalcChecksumBlk(ih, r);
+	nCalcChksum = CalcChecksumBlk(ih, &r[0]);
 	printf(" 1) Adr: 0x%06X-0x%06X\n", r[0].start, r[0].end);
 
 	if (r[0].end + 1 != r[1].start)
 	{
-		printf(" 2) Adr: 0x%06X-0x%06X  MAP REGION SKIPPED, NOT PART OF MAIN CHECKSUM\n",
-			r[0].end+1, r[1].start-1);
+		struct Range sr = {.start = r[0].end+1, .end = r[1].start-1};
+		//struct Range sr = {.start = 0x10000, .end = 0x1FFFF};
+		uint32_t ss = CalcChecksumBlk(ih, &sr);
+		uint32_t sc = crc32(0, ih->d.u8+sr.start, sr.end-sr.start+1);
+		printf("         0x%06X-0x%06X  SKIPPED CalcChk: 0x%08X CalcCRC: 0x%08X\n",
+			sr.start, sr.end, ss, sc);
 	}
 
 	// block 2
-	nCalcChksum2= CalcChecksumBlk(ih, r+1);
-	printf(" 3) Adr: 0x%06X-0x%06X\n", r[1].start, r[1].end);
+	nCalcChksum2= CalcChecksumBlk(ih, &r[1]);
+	printf(" 2) Adr: 0x%06X-0x%06X\n", r[1].start, r[1].end);
 
 	nCalcChksum += nCalcChksum2;
 
@@ -957,10 +1117,10 @@ static int DoMainChecksum(struct ImageHandle *ih, uint32_t nOffset, uint32_t nCs
 	// copy from (le) buffer
 	memcpy_from_le32(&csum, ih->d.u8+nCsumAddr, sizeof(csum));
 
-	printf(" @%05x Chksum : 0x%08X", Config.main_checksum_final, csum.v);
+	printf(" @%05x Chksum: 0x%08X", Config.main_checksum_final, csum.v);
 	if(csum.v != ~csum.iv)
 	{
-		printf(" ~Chksum : 0x%08X INV NOT OK", csum.iv);
+		printf(" ~Chksum: 0x%08X INV NOT OK", csum.iv);
 		errors++;
 	}
 
@@ -970,7 +1130,7 @@ static int DoMainChecksum(struct ImageHandle *ih, uint32_t nOffset, uint32_t nCs
 
 	if(!errors)
 	{
-		printf("  Main ROM checksum OK\n");
+		printf("  Main program checksum OK\n");
 		return 0;
 	}
 
