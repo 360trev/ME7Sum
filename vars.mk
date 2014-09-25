@@ -1,7 +1,7 @@
 RM	= rm -f
 AR	= ar rcs
 ECHO	= @echo
-CFLAGS	= -Wall -O3 -Werror -MD $(CDEFS)
+CFLAGS	= -Wall -O2 -g -Werror -MD $(CDEFS)
 
 CDEFS	+= -D__GIT_VERSION=\"$(GIT_VERSION)\"
 

@@ -650,16 +650,250 @@ static uint32_t CalcChecksumBlk16(const struct ImageHandle *ih, const struct Ran
 	return nChecksum;
 }
 
+static int NormalizeRange(const struct ImageHandle *ih, struct Range *r)
+{
+	// special case: leave end markers alone
+	if (r->start==0xffffffff && r->end==0xffffffff) return 0;
+
+	// We are only reading the ROM. Therefore the start address must be
+	// higher than ROMSTART. Ignore addresses lower than this and
+	// remove the offset for addresses we're interested in.
+	if (r->start < Config.base_address || r->end < Config.base_address)	//ROMSTART)
+	{
+		// The checksum block is outside our range
+		printf(" ERROR: INVALID STARTADDDR/ENDADDR 0x%x/0x%x is less than base address 0x%x\n",
+			r->start, r->end, Config.base_address);
+		return -1;
+	}
+
+	r->start -= Config.base_address;		//ROMSTART;
+	r->end   -= Config.base_address;		//ROMSTART;
+
+	if(r->start>r->end)
+	{
+		// start is after end!
+		printf(" ERROR: INVALID STARTADDDR/ENDADDR: 0x%x>0x%x\n", r->start, r->end);
+		return -1;
+	}
+
+	if(r->start>=ih->len || r->end>=ih->len)
+	{
+		// The checksum block is outside our range
+		printf(" ERROR: INVALID STARTADDDR/ENDADDR: 0x%x/0x%x is past 0x%x\n", r->start, r->end, (int)ih->len);
+		return -1;
+	}
+
+	return 0;
+}
+
 /* Actual work */
 static int FindROMSYS(struct ImageHandle *ih)
 {
-	Config.romsys=0x8030;
+	/* autodetect? */
+	/* verify stuff is in range? */
+	Config.romsys=0x8000;
+	return 0;
+}
+
+struct ROMSYSDescriptor {
+	uint32_t		res00_0F[4];		/* +0x00-0x0F */
+
+	uint32_t		all_param_sum_p;	/* +0x10 */
+	uint32_t		res14_1F[3];		/* +0x14-0x1F */
+
+	uint32_t		res20_2F[4];		/* +0x20-0x2F */
+
+	struct Range	all_param;			/* +0x30-0x37 */
+	uint32_t		startup_sum;		/* +0x38 */
+	uint32_t		program_pages_csum;	/* +0x3C */
+};
+
+static int DoROMSYS_Startup(struct ImageHandle *ih, const struct ROMSYSDescriptor *desc)
+{
+	uint16_t *r16[2];
+	uint32_t nCalcStartupSum;
+
+	r16[0]=(uint16_t *)(ih->d.u8 + 0x8000);
+	r16[1]=(uint16_t *)(ih->d.u8 + 0xFFFE);
+	nCalcStartupSum = le16toh(*r16[0])+le16toh(*r16[1]);
+
+	printf(" Startup section: word[0x00008000]+word[0x0000FFFE]\n");
+	printf(" @%x Add=0x%08X CalcAdd=0x%08X",
+		Config.romsys + offsetof(struct ROMSYSDescriptor, startup_sum),
+		nCalcStartupSum, desc->startup_sum);
+
+	ChecksumsFound ++;
+
+	if (nCalcStartupSum != desc->startup_sum)
+	{
+		ErrorsFound++;
+		if (Config.readonly)
+		{
+			printf("  ** NOT OK **\n");
+			return -1;
+		}
+		else
+		{
+			uint16_t *p16 = (uint16_t *)(ih->d.u8 + Config.romsys +
+				offsetof(struct ROMSYSDescriptor, startup_sum));
+			*p16=le16toh(nCalcStartupSum);
+			ErrorsCorrected++;
+			printf(" ** FIXED **\n");
+		}
+	}
+	else
+	{
+		printf("  ADD OK\n");
+	}
+
+	return 0;
+}
+
+static uint32_t ProgramPageSum(struct ImageHandle *ih, const struct Range *r)
+{
+	uint32_t sum=0;
+	int addr;
+	for(addr=r->start;addr<r->end;addr+=8*1024) {
+		uint16_t *p16[2];
+		p16[0]=(uint16_t *)(ih->d.u8+addr);			/* first word of page */
+		p16[1]=(uint16_t *)(ih->d.u8+addr+8*1024-2);	/* last word of page */
+		if (Verbose>1)
+			printf("      word[0x%08X]+word[0x%08X]\n",
+				addr, addr+8*1024-2);
+		sum+=le16toh(*p16[0]) + le16toh(*p16[1]);
+	}
+	return sum;
+}
+
+static int DoROMSYS_ProgramPages(struct ImageHandle *ih, const struct ROMSYSDescriptor *desc)
+{
+	uint32_t nCalcProgramPagesSum;
+	struct Range r;
+
+	printf(" Program pages: 8k page first+last in 0x0000-0xFFFF and 0x20000-0x%X\n",
+		ih->len-1);
+
+	r.start=0x00000; r.end=0x0FFFF;
+	nCalcProgramPagesSum=ProgramPageSum(ih, &r);
+
+	r.start=0x20000; r.end=ih->len-1;
+	nCalcProgramPagesSum+=ProgramPageSum(ih, &r);
+
+	printf(" @%x Add=0x%08X CalcAdd=0x%08X",
+		Config.romsys + offsetof(struct ROMSYSDescriptor, program_pages_csum),
+		nCalcProgramPagesSum, desc->program_pages_csum);
+
+	ChecksumsFound ++;
+
+	if (nCalcProgramPagesSum != desc->program_pages_csum)
+	{
+		ErrorsFound++;
+		if (Config.readonly)
+		{
+			printf("  ** NOT OK **\n");
+			return -1;
+		}
+		else
+		{
+			uint32_t *p32 = (uint32_t *)(ih->d.u8 + Config.romsys +
+				offsetof(struct ROMSYSDescriptor, program_pages_csum));
+			*p32=le32toh(nCalcProgramPagesSum);
+			ErrorsCorrected++;
+			printf(" ** FIXED **\n");
+		}
+	}
+	else
+	{
+		printf("  ADD OK\n");
+	}
+
+	return 0;
+}
+
+static int DoROMSYS_ParamPage(struct ImageHandle *ih, struct ROMSYSDescriptor *desc)
+{
+	uint16_t *r16[2];
+	uint32_t *p32;
+	uint32_t nAllParamSum, nCalcAllParamSum;
+
+	if(desc->all_param_sum_p<Config.base_address ||
+		desc->all_param_sum_p-Config.base_address>=ih->len) {
+		printf(" ERROR: INVALID ADDR 0x%x\n", desc->all_param_sum_p);
+		return -1;
+	}
+
+	p32 = (uint32_t *)(ih->d.u8 + desc->all_param_sum_p-Config.base_address);
+	nAllParamSum=le32toh(*p32);
+
+	NormalizeRange(ih, &desc->all_param);
+	r16[0]=(uint16_t *)(ih->d.u8 + desc->all_param.start);
+	r16[1]=(uint16_t *)(ih->d.u8 + desc->all_param.end);
+	nCalcAllParamSum = le16toh(*r16[0])+le16toh(*r16[1]);
+
+	printf(" All param page: word[0x%08X]+word[0x%08X]\n",
+		desc->all_param.start, desc->all_param.end);
+	printf(" @%x Add=0x%04X CalcAdd=0x%04X",
+		desc->all_param_sum_p-Config.base_address,
+		nAllParamSum, nCalcAllParamSum);
+
+	ChecksumsFound ++;
+
+	if (nCalcAllParamSum != nAllParamSum)
+	{
+		ErrorsFound++;
+		if (Config.readonly)
+		{
+			printf("  ** NOT OK **\n");
+			return -1;
+		}
+		else
+		{
+			*p32=le32toh(nCalcAllParamSum);
+			ErrorsCorrected++;
+			printf(" ** FIXED **\n");
+		}
+	}
+	else
+	{
+		printf("  ADD OK\n");
+	}
+
 	return 0;
 }
 
 static int DoROMSYS(struct ImageHandle *ih)
 {
-	return 0;
+	struct ROMSYSDescriptor desc;
+	int result = 0;
+
+	memcpy_from_le32(&desc, ih->d.u8+Config.romsys, sizeof(desc));
+
+	DEBUG_ROMSYS("00 0x%08X 0x%08X 0x%08X 0x%08X\n",
+		desc.res00_0F[0], desc.res00_0F[1],
+		desc.res00_0F[2], desc.res00_0F[3]);
+
+	DEBUG_ROMSYS("allparam csum @0x%08X\n", desc.all_param_sum_p);
+
+	DEBUG_ROMSYS("14 0x%08X 0x%08X 0x%08X\n",
+		desc.res14_1F[0], desc.res14_1F[1],
+		desc.res14_1F[2]);
+
+	DEBUG_ROMSYS("20 0x%08X 0x%08X 0x%08X 0x%08X\n",
+		desc.res20_2F[0], desc.res20_2F[1],
+		desc.res20_2F[2], desc.res20_2F[3]);
+
+	DEBUG_ROMSYS("allparam first/last: 0x%08X, 0x%08X\n",
+		desc.all_param.start, desc.all_param.end);
+
+	DEBUG_ROMSYS("startup_sum 0x%08X\n", desc.startup_sum);
+
+	DEBUG_ROMSYS("program_pages_csum 0x%08X\n", desc.program_pages_csum);
+
+    result |= DoROMSYS_Startup(ih, &desc);
+    result |= DoROMSYS_ProgramPages(ih, &desc);
+    result |= DoROMSYS_ParamPage(ih, &desc);
+
+	return result;
 }
 
 static int FindMainCRCPreBlk(const struct ImageHandle *ih)
@@ -931,10 +1165,6 @@ static int DoMainCSMs(struct ImageHandle *ih)
 	nCSM = le32toh(p32[0]);
 	nCSMinv = le32toh(p32[1]);
 
-	if (nCSM != ~nCSMinv)
-	{
-	}
-
 	for (i=1; i<5; i++)
 	{
 		if(Config.crc[i].r.start && Config.crc[i].r.end)
@@ -1046,42 +1276,6 @@ static int FindMainProgramFinal(const struct ImageHandle *ih)
 	}
 
 	return -1;
-}
-
-static int NormalizeRange(const struct ImageHandle *ih, struct Range *r)
-{
-	// special case: leave end markers alone
-	if (r->start==0xffffffff && r->end==0xffffffff) return 0;
-
-	// We are only reading the ROM. Therefore the start address must be
-	// higher than ROMSTART. Ignore addresses lower than this and
-	// remove the offset for addresses we're interested in.
-	if (r->start < Config.base_address || r->end < Config.base_address)	//ROMSTART)
-	{
-		// The checksum block is outside our range
-		printf(" ERROR: INVALID STARTADDDR/ENDADDR 0x%x/0x%x is less than base address 0x%x\n",
-			r->start, r->end, Config.base_address);
-		return -1;
-	}
-
-	r->start -= Config.base_address;		//ROMSTART;
-	r->end   -= Config.base_address;		//ROMSTART;
-
-	if(r->start>r->end)
-	{
-		// start is after end!
-		printf(" ERROR: INVALID STARTADDDR/ENDADDR: 0x%x>0x%x\n", r->start, r->end);
-		return -1;
-	}
-
-	if(r->start>=ih->len || r->end>=ih->len)
-	{
-		// The checksum block is outside our range
-		printf(" ERROR: INVALID STARTADDDR/ENDADDR: 0x%x/0x%x is past 0x%x\n", r->start, r->end, (int)ih->len);
-		return -1;
-	}
-
-	return 0;
 }
 
 //
