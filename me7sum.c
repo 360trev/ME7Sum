@@ -312,8 +312,12 @@ int main(int argc, char **argv)
 	// note, crc0 and crc4 don't have offsets!
 	if(Config.crc[1].offset==0)
 	{
-		if (FindMainCRCOffsets(&ih))	/* Detect if using CRC algo */
-			FindMainCSMOffsets(&ih);	/* Detect if using Checksum algo */
+		FindMainCRCOffsets(&ih);	/* Detect if using CRC algo */
+	}
+
+	if(Config.crc[1].offset==0 && Config.csm_offset==0)
+	{
+		FindMainCSMOffsets(&ih);	/* Detect if using Checksum algo */
 	}
 
 	if(Config.crc[1].r.start && Config.crc[1].r.end && Config.crc[1].offset)
