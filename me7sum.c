@@ -272,7 +272,7 @@ int main(int argc, char **argv)
 	}
 
 	// sanity check: validate firmware file is at least 512kbytes length before proceeding.
-	if(ih.len != 512*1024 || ih.len != 1024*1024)
+	if(ih.len != 512*1024 && ih.len != 1024*1024)
 	{
 		printf("File is an odd size (%d bytes). Are you sure this is a firmware dump?\n",
 			ih.len);
