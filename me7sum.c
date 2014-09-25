@@ -162,17 +162,27 @@ static int DoMainChecksum(struct ImageHandle *ih, uint32_t nOffset, uint32_t nCs
 static int FindChecksumBlks(const struct ImageHandle *ih, int which);
 static int DoChecksumBlk(struct ImageHandle *ih, uint32_t nStartBlk, struct strbuf *buf);
 
-/*
- * main()
- *
- */
-
 static void usage(const char *prog)
 {
 	printf("Usage: %s [-v] [-i <config.ini>] <inrom.bin> [outrom.bin]\n", prog);
 	exit(-1);
 }
 
+static int bytecmp(const void *buf, uint8_t byte, size_t len)
+{
+	int i;
+	const uint8_t *p=buf;
+	for(i=0;i<len;i++) {
+		if (p[i]!=byte)
+			return p[i]-byte;
+	}
+	return 0;
+}
+
+/*
+ * main()
+ *
+ */
 int main(int argc, char **argv)
 {
 	int Step=0;
@@ -256,15 +266,32 @@ int main(int argc, char **argv)
 	}
 	if (i)
 	{
-		printf("failed to open firmware file '%s'\n",input);
+		printf("Failed to open firmware file '%s'\n",input);
+		ErrorsFound++;
 		goto out;
 	}
 
 	// sanity check: validate firmware file is at least 512kbytes length before proceeding.
-	if(ih.len < (1024*512))
+	if(ih.len != 512*1024 || ih.len != 1024*1024)
 	{
-		printf("File too small. Are you sure this is a firmware dump?\n");
+		printf("File is an odd size (%d bytes). Are you sure this is a firmware dump?\n",
+			ih.len);
+		ErrorsFound++;
 		goto out;
+	}
+
+	if(ih.len == (1024*1024))
+	{
+		/* Check to make sure it isn't a doubled up file or padded
+		   with ff or 00 */
+		if (memcmp(ih.d.u8, ih.d.u8+512*1024, 512*1024)==0) {
+			printf("File is doubled up 512k dump. Treating as 512k\n");
+				ih.len=512*1024;
+		} else if (bytecmp(ih.d.u8+512*1024, 0xff, 512*1024)==0 ||
+				   bytecmp(ih.d.u8+512*1024, 0, 512*1024)==0) {
+			printf("File is padded from 512k to 1024k. Treating as 512k\n");
+				ih.len=512*1024;
+		}
 	}
 
 	GetRomInfo(&ih, osconfig);
@@ -433,7 +460,8 @@ out:
 	// free config
 	if(osconfig != 0) { free_properties(osconfig); }
 
-	printf("\n*** DONE! %d/%d errors corrected in %s! ***\n", ErrorsCorrected, ErrorsFound, input);
+	printf("\n*** DONE! %d/%d errors corrected in %s! ***\n", ErrorsCorrected,
+		ErrorsFound, input);
 
 	return 0;
 }
@@ -990,7 +1018,7 @@ static int FindMainCRCBlks(const struct ImageHandle *ih)
 	{
 		if (ih->len==512*1024)
 		{
-			DEBUG_CRC("No CRC regions detected. Falling back to default 512k CRC blocks\n");
+			printf("No CRC regions detected. Falling back to default 512k CRC blocks\n");
 			Config.crc[1].r.start=0x10000;
 			Config.crc[1].r.end=0x13fff;
 			Config.crc[2].r.start=0x14300;
