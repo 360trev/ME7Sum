@@ -48,6 +48,15 @@
 
 #include "debug.h"
 
+#define CHECK_BOOTROM_MP
+
+/* Images with 2+64 main mp descriptors do not have an end marker */
+#ifdef CHECK_BOOTROM_MP
+#define MAX_MP_BLOCK_LEN 66
+#else
+#define MAX_MP_BLOCK_LEN 64
+#endif
+
 // structures
 struct Range {
 	uint32_t	start;
@@ -73,7 +82,7 @@ struct rom_config {
 	uint32_t	romsys;
 
 	uint32_t	multipoint_block_start[2];	/* start of multipoint block descriptors (two sets, first one isn't always there) */
-	uint32_t	multipoint_block_len;		/* size of descriptors */
+	uint32_t	multipoint_desc_len;		/* size of descriptors */
 	uint32_t	main_checksum_offset;		/* two start/end pairs, one at offset, other at offset+8 */
 	uint32_t	main_checksum_final;		/* two 4 byte checksum (one inv) for two blocks conctatenated above) */
 	struct {
@@ -111,7 +120,7 @@ static PropertyListItem romProps[] = {
 	{	GET_VALUE,  &Config.base_address,			"ignition", "rom_firmware_start",		"0x800000"},
 	{	GET_VALUE,  &Config.multipoint_block_start[0],	"ignition", "rom_checksum_block_start0",	"0"},
 	{	GET_VALUE,  &Config.multipoint_block_start[1],	"ignition", "rom_checksum_block_start",	"0"},
-	{	GET_VALUE,  &Config.multipoint_block_len,	"ignition", "rom_checksum_block_len",	"0x10"},
+	{	GET_VALUE,  &Config.multipoint_desc_len,	"ignition", "rom_checksum_desc_len",	"0x10"},
 	{	GET_VALUE,  &Config.main_checksum_offset,	"ignition", "rom_checksum_offset",		"0"},
 	{	GET_VALUE,  &Config.main_checksum_final,	"ignition", "rom_checksum_final",		"0"},
 	{	GET_VALUE,  &Config.crc[0].r.start,			"ignition", "rom_crc0_start",			"0"},
@@ -160,7 +169,7 @@ static int FindMainProgramFinal(const struct ImageHandle *ih);
 static int DoMainChecksum(struct ImageHandle *ih, uint32_t nOffset, uint32_t nCsumAddr);
 
 static int FindChecksumBlks(const struct ImageHandle *ih, int which);
-static int DoChecksumBlk(struct ImageHandle *ih, uint32_t nStartBlk, struct strbuf *buf);
+static int DoChecksumBlk(struct ImageHandle *ih, uint32_t nStartBlk, struct strbuf *buf, int bootrom);
 
 static void usage(const char *prog)
 {
@@ -178,6 +187,54 @@ static int bytecmp(const void *buf, uint8_t byte, size_t len)
 	}
 	return 0;
 }
+
+#ifdef CHECK_BOOTROM_MP
+/* returns 0 if desc[0] and [1] not in bootrom */
+/* returns 1 if desc[0] and [1] are in bootrom, updates ih->bootrom_whitelist if whitelisted */
+/* returns -1 if not in whitelist AND does not match next pair of non-bootrom descriptors */
+static int check_whitelist(struct ImageHandle *ih, uint32_t addr)
+{
+	struct MultipointDescriptor desc[4];
+	/* Check for hardcoded bootrom csums... if there, treat as ok */
+	static const uint32_t whitelist[][2] = {{0x0fa0f5cf, 0x0f4716b3},
+										    {0x0e59d5c8, 0x1077fb35}};
+	int i;
+
+	for(i=0;i<4;i++)
+		memcpy_from_le32(desc+i, ih->d.u8+addr+Config.multipoint_desc_len*i,
+			sizeof(struct MultipointDescriptor));
+
+	for(i=0;i<2;i++) {
+		if (desc[i].r.start>=desc[i].r.end) return 0;
+		if (desc[i].r.start>=Config.base_address) return 0;
+		if (desc[i].r.end>=Config.base_address) return 0;
+	}
+
+	if (desc[0].r.start!=0 || desc[0].r.end!=0x3fff) return 0;
+	if (desc[1].r.start!=0x4000 || desc[1].r.end!=0x7fff) return 0;
+
+	for(i=0;i<2;i++) {
+		if (desc[0].csum.v==~desc[0].csum.iv &&
+			desc[1].csum.v==~desc[1].csum.iv &&
+			whitelist[i][0]==desc[0].csum.v &&
+			whitelist[i][1]==desc[1].csum.v) {
+			ih->bootrom_whitelist=1;
+			return 1;
+		}
+	}
+
+	if ((desc[0].csum.v != desc[2].csum.v) ||
+		(desc[1].csum.v != desc[3].csum.v) ||
+		(desc[0].csum.iv != desc[2].csum.iv) ||
+		(desc[1].csum.iv != desc[3].csum.iv)) {
+		printf("ERROR! Inconsistency in non-whitelisted bootrom multipoint descriptors!\n");
+		ErrorsUncorrectable++;
+		return -1;
+	}
+
+	return 1;
+}
+#endif
 
 /*
  * main()
@@ -407,22 +464,35 @@ int main(int argc, char **argv)
 
 		if(Config.multipoint_block_start[i])
 		{
-			for(iTemp=0; iTemp<64; iTemp++)
+			int bootrom=0;
+
+#ifdef CHECK_BOOTROM_MP
+			/* Only check for whitelist in main multipoint block */
+			if (i==1)
+				bootrom = check_whitelist(&ih, Config.multipoint_block_start[i]);
+#endif
+
+			/* Images with 2+64 main MP descriptors do not have an end marker */
+			for(iTemp=0; iTemp<MAX_MP_BLOCK_LEN; iTemp++)
 			{
 				int result=0;
 				struct strbuf buf;
 
+				if (iTemp>1) bootrom=0;
+
 				memset(&buf, 0, sizeof(buf));
 				sbprintf(&buf, "%2d) ",iTemp+1);
-				result = DoChecksumBlk(&ih, Config.multipoint_block_start[i]+(Config.multipoint_block_len*iTemp), &buf);
+				result = DoChecksumBlk(&ih,
+					Config.multipoint_block_start[i]+(Config.multipoint_desc_len*iTemp),
+					&buf, bootrom);
 				if (buf.pbuf) {
-					if (result<0 || Verbose>0) printf("%s", buf.pbuf);
+					if (iTemp<4 || result<0 || Verbose>0) printf("%s", buf.pbuf);
 					free (buf.pbuf);
 				}
 
 				if (result == 1) { break; } // end of blocks;
 			}
-			printf(" Multipoint #%d: [%d blocks x <16> = %d bytes]\n", i, iTemp, iTemp*16);
+			printf(" Multipoint #%d: [%d blocks x <16> = %d bytes]\n", i+1, iTemp, iTemp*16);
 		}
 		else
 		{
@@ -468,8 +538,14 @@ out:
 	// free config
 	if(osconfig != 0) { free_properties(osconfig); }
 
-	printf("\n*** DONE! %d/%d errors corrected in %s! ***\n", ErrorsCorrected,
-		ErrorsFound, input);
+
+	if (ErrorsCorrected!=ErrorsFound) {
+		printf("\n*** WARNING! %d/%d uncorrected error(s) in %s! ***\n",
+			ErrorsFound-ErrorsCorrected, ErrorsFound, input);
+	} else {
+		printf("\n*** DONE! %d/%d error(s) corrected in %s! ***\n", ErrorsCorrected,
+			ErrorsFound, input);
+	}
 
 	return 0;
 }
@@ -1364,7 +1440,7 @@ static int DoMainChecksum(struct ImageHandle *ih, uint32_t nOffset, uint32_t nCs
 		//struct Range sr = {.start = 0x10000, .end = 0x1FFFF};
 	    ss = CalcChecksumBlk16(ih, &sr);
 		sc = crc32(0, ih->d.u8+sr.start, sr.end-sr.start+1);
-		printf("         0x%06X-0x%06X  SKIPPED CalcChk: 0x%08X CalcCRC: 0x%08X\n",
+		printf("         0x%06X-0x%06X  SKIPPED CalcChk: 0x%08X CalcChk: 0x%08X\n",
 			sr.start, sr.end, ss, sc);
 	}
 
@@ -1432,16 +1508,23 @@ static int FindChecksumBlks(const struct ImageHandle *ih, int which)
 		needle[1]=htole32(Config.base_address+0x27fff);
 		size=4;
 	} else {
+#ifdef CHECK_BOOTROM_MP
+		needle[0]=htole32(0);
+		needle[1]=htole32(0x3fff);
+#else
 		needle[0]=htole32(Config.base_address);
 		needle[1]=htole32(Config.base_address+0x3fff);
+#endif
 		size=8;
 	}
 
-	for(i=0;i+Config.multipoint_block_len<ih->len;i+=2)
+	for(i=0x10000;i+Config.multipoint_desc_len<ih->len;i+=2)
 	{
+		DEBUG_MULTIPOINT("%d: Searching starting at 0x%d\n", which+1, i);
 		i=search_image(ih, i, needle, NULL, size, 2);
 		if (i<0) break;
-		if (i+Config.multipoint_block_len<ih->len)
+
+		if (i+Config.multipoint_desc_len<ih->len)
 		{
 			struct MultipointDescriptor *desc =
 				(struct MultipointDescriptor *)(ih->d.u8+i);
@@ -1451,7 +1534,8 @@ static int FindChecksumBlks(const struct ImageHandle *ih, int which)
 			{
 				/* make sure we don't match the mp #2 when looking for #1 */
 				if(which || desc->r.end != needle[1]) {
-					DEBUG_MULTIPOINT("Found possible multipoint descriptor #%d at 0x%x\n", found+1, i);
+					DEBUG_MULTIPOINT("%d: Found possible multipoint descriptor #%d at 0x%x\n",
+						which+1, found+1, i);
 					DEBUG_MULTIPOINT("0x%x-0x%x\n", desc->r.start, desc->r.end);
 					offset=i;
 					found++;
@@ -1464,7 +1548,7 @@ static int FindChecksumBlks(const struct ImageHandle *ih, int which)
 	{
 		/* test next block to make sure it looks reasonable */
 		struct MultipointDescriptor *desc =
-			(struct MultipointDescriptor *)(ih->d.u8+offset+Config.multipoint_block_len);
+			(struct MultipointDescriptor *)(ih->d.u8+offset+Config.multipoint_desc_len);
 
 		/* for mp block 1, don't be picky about inv */
 		if ((which==0) || desc->csum.v==~desc->csum.iv)
@@ -1482,7 +1566,11 @@ static int FindChecksumBlks(const struct ImageHandle *ih, int which)
 }
 
 // Reads the individual checksum blocks that start at nStartBlk
-static int DoChecksumBlk(struct ImageHandle *ih, uint32_t nStartBlk, struct strbuf *buf)
+// -2 for ignored bootrom block
+// -1 for error
+//  0 for no error
+//  1 for last block
+static int DoChecksumBlk(struct ImageHandle *ih, uint32_t nStartBlk, struct strbuf *buf, int bootrom)
 {
 	// read the ROM byte by byte to make this code endian independant
 	// C16x processors are little endian
@@ -1503,10 +1591,13 @@ static int DoChecksumBlk(struct ImageHandle *ih, uint32_t nStartBlk, struct strb
 	// C16x processors are little endian
 	// copy from (le) buffer into our descriptor
 	memcpy_from_le32(&desc, ih->d.u8+nStartBlk, sizeof(desc));
-	if (NormalizeRange(ih, &desc.r))
-	{
-		ErrorsUncorrectable++;
-		return -1;
+
+	if (!bootrom) {
+		if (NormalizeRange(ih, &desc.r))
+		{
+			ErrorsUncorrectable++;
+			return -1;
+		}
 	}
 
 	sbprintf(buf, " Adr: 0x%06X-0x%06X ", desc.r.start, desc.r.end);
@@ -1525,17 +1616,26 @@ static int DoChecksumBlk(struct ImageHandle *ih, uint32_t nStartBlk, struct strb
 		errors++;
 	}
 
-	// calc checksum
-	nCalcChksum = CalcChecksumBlk16(ih, &desc.r);
+	if (bootrom && ih->bootrom_whitelist) {
+		/* whitelisted */
+		nCalcChksum = desc.csum.v;
+		sbprintf(buf, " Boot: (whitelisted)");
+	} else {
+		// calc checksum
+		nCalcChksum = CalcChecksumBlk16(ih, &desc.r);
 
-	sbprintf(buf, " CalcChk: 0x%08X", nCalcChksum);
-	ChecksumsFound ++;
-	if(desc.csum.v != nCalcChksum) { errors++; }
+		sbprintf(buf, " CalcChk: 0x%08X", nCalcChksum);
+		ChecksumsFound ++;
+
+		if (desc.csum.v != nCalcChksum) {
+			errors++;
+		}
+	}
 
 	if (!errors)
 	{
-		sbprintf(buf, "  OK\n");
-		return 0;
+		sbprintf(buf, " OK\n");
+		return bootrom?-2:0;
 	}
 
 	ErrorsFound+=errors;

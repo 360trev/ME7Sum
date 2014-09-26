@@ -44,6 +44,7 @@ struct ImageHandle {
 	} d;
 	size_t	len;
 	enum	Padding pad;
+	int	bootrom_whitelist;
 };
 
 /*
