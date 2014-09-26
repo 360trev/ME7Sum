@@ -256,7 +256,7 @@ int main(int argc, char **argv)
 	memset(&buf, 0, sizeof(buf));
 
 	// information about the tool
-	printf("ME7Tool (%s) [ Management tool for Bosch ME7.x firmwares]\n",
+	printf("ME7Tool (%s) [Management tool for Bosch ME7.x firmwares]\n",
 		__GIT_VERSION);
 	printf("Inspiration from Andy Whittaker's tools and information\n");
 	printf("Written by 360trev and nyet [BSD License Open Source].\n");
@@ -1039,7 +1039,7 @@ static int FindMainCRCPreBlk(const struct ImageHandle *ih)
 
 	if (found>1)
 	{
-		DEBUG_CRC("Too many matches (%d). CRC block start find failed\n", found);
+		DEBUG_CRC("Too many matches (%d). CRC/csum block start find failed\n", found);
 	}
 
 	printf("missing\n");
@@ -1057,16 +1057,16 @@ static int FindMainCRCBlks(const struct ImageHandle *ih)
 	uint8_t n1[] = {0x10, 0x9B, 0xE6, 0xF4, 0x00, 0x00, 0xE6, 0xF5, 0x00, 0x00, 0x26, 0xF4};
 	uint8_t m1[] = {0xff, 0xff, 0xff, 0xff, 0x00, 0x00, 0xff, 0xff, 0x00, 0xff, 0xff, 0xff};
 
-	printf(" Searching for main data checksum blocks...");
+	printf(" Searching for main data CRC/csum blocks...");
 	DEBUG_FLUSH_CRC;
 
-	found=FindMainCRCData(ih, "CRC block starts", n0, m0, sizeof(n0), 1, 3, offset, MAX_CRC_BLKS, NULL);
+	found=FindMainCRCData(ih, "CRC/csum block starts", n0, m0, sizeof(n0), 1, 3, offset, MAX_CRC_BLKS, NULL);
 
 	if (found>0 && found<=MAX_CRC_BLKS)
 	{
 		for (i=0;i<found;i++)
 		{
-			DEBUG_CRC("Found %s #%d at 0x%x\n", "CRC block start", i+1, offset[i]);
+			DEBUG_CRC("Found %s #%d at 0x%x\n", "CRC/csum block start", i+1, offset[i]);
 			// crc0 is reserved for pre-region
 			if (i<MAX_CRC_BLKS)
 				Config.crc[i+1].r.start=offset[i];
@@ -1076,16 +1076,16 @@ static int FindMainCRCBlks(const struct ImageHandle *ih)
 
 	if (found>MAX_CRC_BLKS)
 	{
-		DEBUG_CRC("Too many matches (%d). CRC block start find failed\n", found);
+		DEBUG_CRC("Too many matches (%d). CRC/csum block start find failed\n", found);
 	}
 
-	found=FindMainCRCData(ih, "CRC block end", n1, m1, sizeof(n1), 2, MAX_CRC_BLKS, offset, 4, NULL);
+	found=FindMainCRCData(ih, "CRC/csum block end", n1, m1, sizeof(n1), 2, MAX_CRC_BLKS, offset, 4, NULL);
 
 	if (found>0 && found<=MAX_CRC_BLKS)
 	{
 		for (i=0;i<found;i++)
 		{
-			DEBUG_CRC("Found %s #%d at 0x%x\n", "CRC block end", i+1, offset[i]);
+			DEBUG_CRC("Found %s #%d at 0x%x\n", "CRC/csum block end", i+1, offset[i]);
 			// crc0 is reserved for pre-region
 			if (i<MAX_CRC_BLKS)
 				Config.crc[i+1].r.end=offset[i];
@@ -1095,14 +1095,14 @@ static int FindMainCRCBlks(const struct ImageHandle *ih)
 
 	if (found>MAX_CRC_BLKS)
 	{
-		DEBUG_CRC("Too many matches (%d). CRC block end find failed\n", found);
+		DEBUG_CRC("Too many matches (%d). CRC/csum block end find failed\n", found);
 	}
 
 	if (ret0||ret1)
 	{
 		if (ih->len==512*1024)
 		{
-			printf("No CRC regions detected.\n");
+			printf("No CRC/csum blocks detected.\n");
 			printf(" Falling back to default 512k CRC blocks...");
 			Config.crc[1].r.start=0x10000;
 			Config.crc[1].r.end=0x13fff;
