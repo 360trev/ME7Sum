@@ -27,6 +27,13 @@
 #include <stdint.h>
 #include "str.h"
 
+enum Padding {
+    PADDING_NONE=0,
+    PADDING_00,
+    PADDING_FF,
+    PADDING_DOUBLED
+};
+
 struct ImageHandle {
 	union {
 //		uint32_t	*u32;
@@ -36,6 +43,7 @@ struct ImageHandle {
 		void		*p;
 	} d;
 	size_t	len;
+	enum	Padding pad;
 };
 
 /*

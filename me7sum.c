@@ -287,10 +287,15 @@ int main(int argc, char **argv)
 		if (memcmp(ih.d.u8, ih.d.u8+512*1024, 512*1024)==0) {
 			printf("File is doubled up 512k dump. Treating as 512k\n");
 				ih.len=512*1024;
-		} else if (bytecmp(ih.d.u8+512*1024, 0xff, 512*1024)==0 ||
-				   bytecmp(ih.d.u8+512*1024, 0, 512*1024)==0) {
-			printf("File is padded from 512k to 1024k. Treating as 512k\n");
+			ih.pad = PADDING_DOUBLED;
+		} else if (bytecmp(ih.d.u8+512*1024, 0xff, 512*1024)==0) {
+			printf("File is padded from 512k to 1024k with 0xFF. Treating as 512k\n");
 				ih.len=512*1024;
+			ih.pad = PADDING_FF;
+		} else if (bytecmp(ih.d.u8+512*1024, 0, 512*1024)==0) {
+			printf("File is padded from 512k to 1024k with zeros. Treating as 512k\n");
+				ih.len=512*1024;
+			ih.pad = PADDING_00;
 		}
 	}
 
@@ -445,7 +450,10 @@ int main(int argc, char **argv)
 		memset(&buf, 0, sizeof(buf));
 		printf("\nAttempting to output corrected firmware file '%s'\n",output);
 		// write crc corrected file out
-		save_file(output,ih.d.p,ih.len, &buf);
+		if (ih.pad == PADDING_DOUBLED) {
+			memcpy(ih.d.u8, ih.d.u8+512*1024, 512*1024);
+		}
+		save_file(output,ih.d.p,ih.pad==PADDING_NONE?ih.len:ih.len*2, &buf);
 		if(buf.pbuf) {
 			printf("%s", buf.pbuf);
 			free(buf.pbuf);
@@ -1018,7 +1026,8 @@ static int FindMainCRCBlks(const struct ImageHandle *ih)
 	{
 		if (ih->len==512*1024)
 		{
-			printf("No CRC regions detected. Falling back to default 512k CRC blocks\n");
+			printf("No CRC regions detected.\n");
+			printf(" Falling back to default 512k CRC blocks...");
 			Config.crc[1].r.start=0x10000;
 			Config.crc[1].r.end=0x13fff;
 			Config.crc[2].r.start=0x14300;
