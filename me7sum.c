@@ -970,21 +970,49 @@ static int FindMainCRCPreBlk(const struct ImageHandle *ih)
 	return 0;
 }
 
+#if 0
+static uint32_t deref32(const struct ImageHandle *ih, off_t off)
+{
+	uint32_t ret=le32toh(*(uint32_t *)(ih->d.u8+off));
+	if(ret<Config.base_address) return 0xfffffff;
+	if(ret>=ih->len+Config.base_address-4) return 0xffffffff;
+	return ret-Config.base_address;
+}
+#endif
+
 static int FindMainCRCBlks(const struct ImageHandle *ih)
 {
-	int i, found, ret0=-1, ret1=-1;
+	int i=0, skip=0, found, ret0=-1, ret1=-1;
 	uint32_t offset[MAX_CRC_BLKS];
-	//                            LL    LL                HH
-	uint8_t n0[] = {0xE6, 0xF8, 0x00, 0x00, 0xE6, 0xF9, 0x00, 0x00, 0xF2, 0xF4, 0x00, 0x00, 0x24, 0x8F};
-	uint8_t m0[] = {0xff, 0xff, 0x00, 0x00, 0xff, 0xff, 0x00, 0xff, 0xff, 0xff, 0x00, 0x00, 0xff, 0xff};
-	//                                        LL    LL                HH
+
+	/* maybe hardcode to 0x14300 and 0x18191? */
+	//                               LL    LL                HH
+	uint8_t n0_512[] = {0x06, 0xF8, 0x00, 0x00, 0x16, 0xF9, 0x00, 0x00, 0x46, 0xF9, 0x00, 0x00, 0x3D, 0x02};
+	uint8_t m0_512[] = {0xff, 0xff, 0x00, 0x00, 0xff, 0xff, 0x00, 0xff, 0xff, 0xff, 0x00, 0x00, 0xff, 0xff};
+
+	//                                LL    LL                HH
+	uint8_t n0_1024[] = {0xE6, 0xF8, 0x00, 0x00, 0xE6, 0xF9, 0x00, 0x00, 0xF2, 0xF4, 0x00, 0x00, 0x24, 0x8F};
+	uint8_t m0_1024[] = {0xff, 0xff, 0x00, 0x00, 0xff, 0xff, 0x00, 0xff, 0xff, 0xff, 0x00, 0x00, 0xff, 0xff};
+
+	//                                            LL    LL                HH
 	uint8_t n1[] = {0x10, 0x9B, 0xE6, 0xF4, 0x00, 0x00, 0xE6, 0xF5, 0x00, 0x00, 0x26, 0xF4};
 	uint8_t m1[] = {0xff, 0xff, 0xff, 0xff, 0x00, 0x00, 0xff, 0xff, 0x00, 0xff, 0xff, 0xff};
+
+	const uint8_t *n0=n0_1024, *m0=m0_1024;
+
+	if (ih->len==512*1024) {
+		n0=n0_512;
+		m0=m0_512;
+		/* hopefully 0x10000-0x13fff */
+		memcpy_from_le32(&Config.crc[1].r, ih->d.u8+0x1fc60, sizeof(struct Range));
+		NormalizeRange(ih, &Config.crc[1].r);
+		skip=1;
+	}
 
 	printf(" Searching for main data checksum blocks...");
 	DEBUG_FLUSH_CRC;
 
-	found=FindMainCRCData(ih, "CRC block starts", n0, m0, sizeof(n0), 1, 3, offset, MAX_CRC_BLKS, NULL);
+	found=FindMainCRCData(ih, "CRC block starts", n0, m0, sizeof(n0_1024), 1, 3, offset, MAX_CRC_BLKS, NULL);
 
 	if (found>0 && found<=MAX_CRC_BLKS)
 	{
@@ -993,7 +1021,7 @@ static int FindMainCRCBlks(const struct ImageHandle *ih)
 			DEBUG_CRC("Found %s #%d at 0x%x\n", "CRC block start", i+1, offset[i]);
 			// crc0 is reserved for pre-region
 			if (i<MAX_CRC_BLKS)
-				Config.crc[i+1].r.start=offset[i];
+				Config.crc[i+1+skip].r.start=offset[i];
 			ret0=0;
 		}
 	}
@@ -1003,25 +1031,40 @@ static int FindMainCRCBlks(const struct ImageHandle *ih)
 		DEBUG_CRC("Too many matches (%d). CRC block start find failed\n", found);
 	}
 
-	found=FindMainCRCData(ih, "CRC block end", n1, m1, sizeof(n1), 2, MAX_CRC_BLKS, offset, 4, NULL);
-
-	if (found>0 && found<=MAX_CRC_BLKS)
-	{
-		for (i=0;i<found;i++)
-		{
-			DEBUG_CRC("Found %s #%d at 0x%x\n", "CRC block end", i+1, offset[i]);
-			// crc0 is reserved for pre-region
-			if (i<MAX_CRC_BLKS)
-				Config.crc[i+1].r.end=offset[i];
+	if (ih->len==512*1024) {
+		if(found==2) {
+			Config.crc[2].r.end=0x17f67;
+			Config.crc[3].r.end=0x1fbff;
 			ret1=0;
+		} else {
+			DEBUG_CRC("Did not find exactly 2 matches (got %d). CRC block start find failed\n", found);
+			for(i=1;i<MAX_CRC_BLKS;i++) {
+				Config.crc[i].r.start=0;
+				Config.crc[i].r.end=0;
+			}
+		}
+	} else {
+		found=FindMainCRCData(ih, "CRC block end", n1, m1, sizeof(n1), 2, MAX_CRC_BLKS, offset, 4, NULL);
+
+		if (found>0 && found<=MAX_CRC_BLKS)
+		{
+			for (i=0;i<found;i++)
+			{
+				DEBUG_CRC("Found %s #%d at 0x%x\n", "CRC block end", i+1, offset[i]);
+				// crc0 is reserved for pre-region
+				if (i<MAX_CRC_BLKS)
+					Config.crc[i+1].r.end=offset[i];
+				ret1=0;
+			}
+		}
+
+		if (found>MAX_CRC_BLKS)
+		{
+			DEBUG_CRC("Too many matches (%d). CRC block end find failed\n", found);
 		}
 	}
 
-	if (found>MAX_CRC_BLKS)
-	{
-		DEBUG_CRC("Too many matches (%d). CRC block end find failed\n", found);
-	}
-
+#if 0
 	if (ret0||ret1)
 	{
 		if (ih->len==512*1024)
@@ -1037,9 +1080,10 @@ static int FindMainCRCBlks(const struct ImageHandle *ih)
 			ret0=ret1=0;
 		}
 	}
+#endif
 
 	printf("%s\n", (ret0||ret1)?"FAIL":"OK");
-	return ret0 & ret1;
+	return ret0||ret1;
 }
 
 #ifdef DEBUG_CRC_MATCHING
@@ -1074,7 +1118,7 @@ static int FindMainCRCOffsets(const struct ImageHandle *ih)
 	if (found!=3)
 	{
 		DEBUG_CRC("Did not find exactly 3 matches (got %d). CRC offset find failed\n", found);
-		for(i=0;i<MAX_CRC_OFFSETS;i++) {
+		for(i=1;i<MAX_CRC_BLKS;i++) {
 			Config.crc[i].offset=0;
 		}
 		printf("missing\n");
