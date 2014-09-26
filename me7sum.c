@@ -1408,7 +1408,7 @@ static int DoMainChecksum(struct ImageHandle *ih, uint32_t nOffset, uint32_t nCs
 
 	memcpy_to_le32(ih->d.u8+nCsumAddr, &csum, sizeof(csum));
 
-	printf(" ** FIXED! **\n");
+	printf(" ** FIXED **\n");
 	ErrorsCorrected+=errors;
 	return 0;
 }
@@ -1551,7 +1551,7 @@ static int DoChecksumBlk(struct ImageHandle *ih, uint32_t nStartBlk, struct strb
 	pDesc=(struct MultipointDescriptor *)(ih->d.u8+nStartBlk);
 	memcpy_to_le32(&pDesc->csum, &desc.csum, sizeof(desc.csum));
 
-	sbprintf(buf, " ** FIXED! **\n");
+	sbprintf(buf, " ** FIXED **\n");
 	ErrorsCorrected+=errors;
 	return 0;
 }
