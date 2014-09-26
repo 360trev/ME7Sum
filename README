@@ -32,7 +32,11 @@ you are doing. **
 Note that if me7sum cannot completely detect checksum/CRC locations correctly,
 it will not output a file!
 
-** Make sure to check all bins with ME7Check.exe before flashing them! **
+** Always use me3sum.exe on a original version of your bin first to make sure
+   it is compatible! **
+
+** Make sure to check all corrected bins with ME7Check.exe before flashing
+   them! **
 
 KNOWN ISSUES:
 -------------
