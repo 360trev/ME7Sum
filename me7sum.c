@@ -1256,7 +1256,8 @@ static int DoMainCRCs(struct ImageHandle *ih)
 		}
 		else
 		{
-			DEBUG_CRC(" %d) Adr: 0x%06X-0x%06X SKIPPED\n", i, Config.crc[0].r.start, Config.crc[0].r.end);
+			DEBUG_CRC(" %d) Adr: 0x%06X-0x%06X SKIPPED\n", i,
+				Config.crc[0].r.start, Config.crc[0].r.end);
 		}
 	}
 	return result;
@@ -1561,7 +1562,7 @@ static int FindChecksumBlks(const struct ImageHandle *ih, int which)
 		}
 	}
 
-	printf(which==0?"SKIPPED\n":"FAIL\n");
+	printf(which==0?"missing\n":"FAIL\n");
 	return -1;
 }
 
