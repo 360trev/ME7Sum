@@ -331,8 +331,8 @@ int main(int argc, char **argv)
 	// sanity check: validate firmware file is at least 512kbytes length before proceeding.
 	if(ih.len != 512*1024 && ih.len != 1024*1024)
 	{
-		printf("File is an odd size (%zu bytes). Are you sure this is a firmware dump?\n",
-			ih.len);
+		printf("File is an odd size (%d bytes). Are you sure this is a firmware dump?\n",
+			(int)ih.len);
 		ErrorsFound++;
 		goto out;
 	}
@@ -834,8 +834,8 @@ static int DoROMSYS_Startup(struct ImageHandle *ih, const struct ROMSYSDescripto
 	nCalcStartupSum = le16toh(*r16[0])+le16toh(*r16[1]);
 
 	printf(" Startup section: word[0x00008000]+word[0x0000FFFE]\n");
-	printf(" @%zx Add=0x%08X CalcAdd=0x%08X",
-		Config.romsys + offsetof(struct ROMSYSDescriptor, startup_sum),
+	printf(" @%x Add=0x%08X CalcAdd=0x%08X",
+		Config.romsys + (int)offsetof(struct ROMSYSDescriptor, startup_sum),
 		nCalcStartupSum, desc->startup_sum);
 
 	ChecksumsFound ++;
@@ -886,8 +886,8 @@ static int DoROMSYS_ProgramPages(struct ImageHandle *ih, const struct ROMSYSDesc
 	uint32_t nCalcProgramPagesSum;
 	struct Range r;
 
-	printf(" Program pages: 8k page first+last in 0x0000-0xFFFF and 0x20000-0x%zX\n",
-		ih->len-1);
+	printf(" Program pages: 8k page first+last in 0x0000-0xFFFF and 0x20000-0x%X\n",
+		(int)ih->len-1);
 
 	r.start=0x00000; r.end=0x0FFFF;
 	nCalcProgramPagesSum=ProgramPageSum(ih, &r);
@@ -895,8 +895,8 @@ static int DoROMSYS_ProgramPages(struct ImageHandle *ih, const struct ROMSYSDesc
 	r.start=0x20000; r.end=ih->len-1;
 	nCalcProgramPagesSum+=ProgramPageSum(ih, &r);
 
-	printf(" @%zx Add=0x%08X CalcAdd=0x%08X",
-		Config.romsys + offsetof(struct ROMSYSDescriptor, program_pages_csum),
+	printf(" @%x Add=0x%08X CalcAdd=0x%08X",
+		Config.romsys + (int)offsetof(struct ROMSYSDescriptor, program_pages_csum),
 		nCalcProgramPagesSum, desc->program_pages_csum);
 
 	ChecksumsFound ++;
