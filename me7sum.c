@@ -1102,7 +1102,7 @@ static int FindMainCRCBlks(const struct ImageHandle *ih)
 	{
 		if (ih->len==512*1024)
 		{
-			printf("No CRC/csum blocks detected.\n");
+			printf("missing\n");
 			printf(" Falling back to default 512k CRC blocks...");
 			Config.crc[1].r.start=0x10000;
 			Config.crc[1].r.end=0x13fff;
