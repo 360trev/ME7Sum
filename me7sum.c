@@ -30,6 +30,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <assert.h>
 #include <errno.h>
 #include <ctype.h>	/* isprint() */
 
@@ -104,7 +105,11 @@ struct info_config {
 // globals
 static struct rom_config Config;
 static struct info_config InfoConfig;
+#ifdef DEBUG_YES
+static int Verbose = 2;
+#else
 static int Verbose = 0;
+#endif
 
 static int ChecksumsFound = 0;
 static int ErrorsUncorrectable = 0;
@@ -263,10 +268,13 @@ int main(int argc, char **argv)
 
 	opterr=0;
 
-	while ((c = getopt(argc, argv, "vi:")) != -1)
+	while ((c = getopt(argc, argv, "qvi:")) != -1)
 	{
 		switch (c)
 		{
+			case 'q':
+				Verbose--;
+				break;
 			case 'v':
 				Verbose++;
 				break;
@@ -284,6 +292,8 @@ int main(int argc, char **argv)
 				return -1;
 		}
 	}
+
+	if (Verbose<0) Verbose=0;
 
 	argc-=optind;
 	argv+=optind;
@@ -419,6 +429,10 @@ int main(int argc, char **argv)
 	}
 	else
 	{
+#ifdef DEBUG_CRC_MATCHING
+		DoMainCRCs(&ih);
+		DoMainCSMs(&ih);
+#endif
 		printf("\nStep #%d: ERROR! Skipping main data checksums ... UNDEFINED\n", Step);
 		ErrorsUncorrectable++;
 	}
@@ -697,16 +711,18 @@ static int GetRomDump(const struct ImageHandle *ih, struct section *osconfig)
 }
 
 /* NEEDLE/HAYSTACK util */
-static int FindMainCRCData(const struct ImageHandle *ih, const char *what,
+static int FindData(const struct ImageHandle *ih, const char *what,
 	const uint8_t *n, const uint8_t *m, int len,	// needle, mask, len of needle/mask
 	int off_l, int off_h,							// where to find hi/lo (short word offset into find array)
-	uint32_t *offset, size_t offset_len,				// array to store discovered offsets, len of array
+	uint32_t *offset, size_t offset_len,			// array to store discovered offsets, len of array
 	uint32_t *where)								// address of match (ONLY if single match), NULL if not needed
 {
 	/* Note that off_l and off_h are SHORT WORD offsets, i.e. 1 == 2 bytes */
 
 	int i, found=0;
 	uint32_t last_where=0;
+
+	assert((len&1)==0); // make sure its even
 
 	for(i=0;i+len<ih->len;i+=2)
 	{
@@ -719,12 +735,15 @@ static int FindMainCRCData(const struct ImageHandle *ih, const char *what,
 			uint32_t addr=(high<<16) | low;
 
 			if (addr>Config.base_address && addr-Config.base_address<ih->len) {
-				DEBUG_CRC("Found possible %s #%d at 0x%x (from 0x%x)\n", what, found+1, addr, i);
-#ifdef DEBUG_CRC_MATCHING
-				hexdump(ih->d.u8+i-4, 4, " [");
-				hexdump(ih->d.u8+i, len, "] ");
-				hexdump(ih->d.u8+i+1, 4, "\n");
-#endif
+				if (Verbose>1) {
+					printf("Found possible %s #%d at 0x%x (from 0x%x)\n",
+						what, found+1, addr, i);
+				}
+				if (Verbose>2) {
+					hexdump(ih->d.u8+i-4, 4, " [");
+					hexdump(ih->d.u8+i, len, "] ");
+					hexdump(ih->d.u8+i+1, 4, "\n");
+				}
 
 				if(found<offset_len)
 				{
@@ -1024,7 +1043,7 @@ static int FindMainCRCPreBlk(const struct ImageHandle *ih)
 	printf(" Searching for main data CRC pre block...");
 	DEBUG_FLUSH_CRC;
 
-	found=FindMainCRCData(ih, "CRC pre block", needle, mask, sizeof(needle), 1, 3, &offset, 1, &where);
+	found=FindData(ih, "CRC pre block", needle, mask, sizeof(needle), 1, 3, &offset, 1, &where);
 
 	if (found==1)
 	{
@@ -1060,7 +1079,7 @@ static int FindMainCRCBlks(const struct ImageHandle *ih)
 	printf(" Searching for main data CRC/csum blocks...");
 	DEBUG_FLUSH_CRC;
 
-	found=FindMainCRCData(ih, "CRC/csum block starts", n0, m0, sizeof(n0), 1, 3, offset, MAX_CRC_BLKS, NULL);
+	found=FindData(ih, "CRC/csum block starts", n0, m0, sizeof(n0), 1, 3, offset, MAX_CRC_BLKS, NULL);
 
 	if (found>0 && found<=MAX_CRC_BLKS)
 	{
@@ -1079,7 +1098,7 @@ static int FindMainCRCBlks(const struct ImageHandle *ih)
 		DEBUG_CRC("Too many matches (%d). CRC/csum block start find failed\n", found);
 	}
 
-	found=FindMainCRCData(ih, "CRC/csum block end", n1, m1, sizeof(n1), 2, MAX_CRC_BLKS, offset, 4, NULL);
+	found=FindData(ih, "CRC/csum block end", n1, m1, sizeof(n1), 2, MAX_CRC_BLKS, offset, 4, NULL);
 
 	if (found>0 && found<=MAX_CRC_BLKS)
 	{
@@ -1134,13 +1153,13 @@ static int FindMainCRCOffsets(const struct ImageHandle *ih)
 	printf(" Searching for main data CRC offsets...");
 	DEBUG_FLUSH_CRC;
 
-	found=FindMainCRCData(ih, "CRC offset", needle, mask, sizeof(needle), 3, 5, offset, MAX_CRC_OFFSETS, NULL);
+	found=FindData(ih, "CRC offset", needle, mask, sizeof(needle), 3, 5, offset, MAX_CRC_OFFSETS, NULL);
 
 	if (found>0 && found<=MAX_CRC_OFFSETS)
 	{
 		for (i=0;i<found;i++)
 		{
-			DEBUG_CRC("Found CRC #%d at 0x%x\n", i+1, offset[i]);
+			DEBUG_CRC("Found CRC offset #%d at 0x%x\n", i+1, offset[i]);
 			// crc0 is reserved for pre-region
 			if (i<MAX_CRC_BLKS)
 				Config.crc[i+1].offset=offset[i];
@@ -1172,14 +1191,14 @@ static int FindMainCSMOffsets(const struct ImageHandle *ih)
 {
 	int found;
 	uint32_t offset;
-	//                                                        LL    LL                HH    HH
-	uint8_t needle[] = {0x10, 0xF0, 0x00, 0x00, 0xE6, 0xF4, 0x00, 0x00, 0xE6, 0xF5, 0x80, 0x00, 0xDA, 0x00 /*, 0x00, 0x00, 0xe6, 0x00, 0x04, 0x02 */};
-	uint8_t   mask[] = {0x10, 0xF0, 0x00, 0x00, 0xff, 0xff, 0x00, 0x00, 0xff, 0xff, 0xf0, 0x00, 0xff, 0xff /*, 0x00, 0x00, 0xff, 0xff, 0xff, 0xff */};
+	//                                           LL    LL                HH    HH
+	uint8_t needle[] = {0xE1, 0x0C, 0xE6, 0xF4, 0x00, 0x00, 0xE6, 0xF5, 0x80, 0x00, 0xDA, 0x00 /*, 0xf0, 0xe1, 0x0c, 0xe6 */};
+	uint8_t   mask[] = {0xff, 0xff, 0xff, 0xff, 0x00, 0x00, 0xff, 0xff, 0xf0, 0x00, 0xff, 0xff /*, 0xf0, 0xff, 0xff, 0xff */};
 
 	printf(" Searching for main data checksum offsets...");
 	DEBUG_FLUSH_CRC;
 
-	found=FindMainCRCData(ih, "Checksum offset", needle, mask, sizeof(needle), 3, 5, &offset, 1, NULL);
+	found=FindData(ih, "Checksum offset", needle, mask, sizeof(needle), 2, 4, &offset, 1, NULL);
 
 	if (found!=1) {
 		DEBUG_CRC("Did not find exactly 1 match (got %d). Checksum offset find failed\n", found);
@@ -1188,7 +1207,7 @@ static int FindMainCSMOffsets(const struct ImageHandle *ih)
 		return -1;
 	}
 
-	DEBUG_CRC("Found Checksum at 0x%x\n", offset);
+	DEBUG_CRC("Found checksum offset at 0x%x\n", offset);
 	Config.csm_offset=offset;
 	printf("OK\n");
 	return 0;
