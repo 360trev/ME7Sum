@@ -33,6 +33,7 @@
 #include <assert.h>
 #include <errno.h>
 #include <ctype.h>	/* isprint() */
+#include <arpa/inet.h>	/* ntohl() */
 
 #include "os/os.h"
 
@@ -43,6 +44,7 @@
 
 //#define DEBUG_ROM_INFO
 //#define DEBUG_ROMSYS_MATCHING
+//#define DEBUG_RSA_MATCHING
 //#define DEBUG_CRC_MATCHING
 //#define DEBUG_MAIN_MATCHING
 //#define DEBUG_MULTIPOINT_MATCHING
@@ -80,6 +82,12 @@ struct rom_config {
 	int			readonly;
 	uint32_t	base_address;				/* rom base address */
 
+	struct {
+		uint8_t signature[1024/8];
+		uint8_t modulus[128];
+		int public_exponent;
+		uint8_t default_signature[1024/8];
+	} rsa;
 	uint32_t	romsys;
 
 	uint32_t	multipoint_block_start[2];	/* start of multipoint block descriptors (two sets, first one isn't always there) */
@@ -158,6 +166,8 @@ static InfoListItem romInfo[] = {
 
 static int GetRomDump(const struct ImageHandle *ih, struct section *osconfig);
 static int GetRomInfo(const struct ImageHandle *ih, struct section *osconfig);
+
+static int FindRSA(struct ImageHandle *ih);
 
 static int FindROMSYS(struct ImageHandle *ih);
 static int DoROMSYS(struct ImageHandle *ih);
@@ -370,6 +380,9 @@ int main(int argc, char **argv)
 	GetRomDump(&ih, osconfig);
 
 	DEBUG_EXIT_ROM;
+
+	FindRSA(&ih);
+	DEBUG_EXIT_RSA;
 
 	//
 	// Step #1 ROMSYS
@@ -822,6 +835,100 @@ static int NormalizeRange(const struct ImageHandle *ih, struct Range *r)
 }
 
 /* Actual work */
+static int FindRSA(struct ImageHandle *ih)
+{
+	int signature=0;
+	int modulus=0;
+	int exponent=0;
+	int i;
+	int ret=0;
+	uint8_t needle[2][14] = {
+/*
+21 00 DA 8A 7A A0 08 06 E6 F4
+80 00 88 40
+E6 F4 94 6A.E6 F5.81 00
+88 50
+88 40 E6 FC BA 4E E6 FD
+*/
+	    //                                    LL    LL                HH    HH          
+		{0x80, 0x00, 0x88, 0x40, 0xE6, 0xF4, 0x00, 0x00, 0xE6, 0xF5, 0x80, 0x00, 0x88, 0x50},
+/*
+E6 FE 21 00 DA 8A 7A A0 08 06
+E0 44 88 40
+E6 F4 14 6B E6 F5 81 00
+88 50
+88 40 E6 FC B2 4D E6 FD 
+*/
+		{0xE0, 0x44, 0x88, 0x40, 0xE6, 0xF4, 0x00, 0x00, 0xE6, 0xF5, 0x80, 0x00, 0x88, 0x50}
+	};
+	uint8_t   mask[] =
+		{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x00, 0x00, 0xff, 0xff, 0x00, 0xff, 0xff, 0xff};
+
+
+	for(i=0;i<2;i++) {
+		int found;
+		uint32_t offset[2]={0,0};
+		uint32_t where=0;
+
+		printf(" Searching for RSA offset #%d...", i);
+		found=FindData(ih, "RSA offset", needle[i], mask, sizeof(needle[i]), 3, 5, offset, 2, &where);
+
+		if (found==(i?1:2))
+		{
+			// crc0 is reserved for pre-region
+			DEBUG_RSA(" Found RSA offset #%d 0x%x\n", i, offset[0]);
+
+			if (i==0) {
+				DEBUG_RSA(" Found RSA offset #%d 0x%x\n", i, offset[1]);
+				signature=offset[0];
+				modulus=offset[1];
+			} else {
+				exponent=offset[0];
+			}
+
+			printf("OK\n");
+			continue;
+		}
+
+		if (found>(i?1:2))
+		{
+			DEBUG_RSA("%d: Too many matches (%d). RSA find failed\n", i, found);
+			continue;
+		}
+
+		printf("missing\n");
+		ret=-1;
+	}
+
+	if (ret) return ret;
+
+	if (signature+1024/8>=ih->len) return -1;
+	if (modulus+128>=ih->len) return -1;
+	if (exponent+4+1024/8>=ih->len) return -1;
+
+	printf("         signature @%x\n", signature);
+	memcpy(Config.rsa.signature, ih->d.u8+signature, 1024/8);
+	if (Verbose)
+		hexdump(Config.rsa.signature, 1024/8, "\n");
+
+	printf("           modulus @%x\n", modulus);
+	memcpy(Config.rsa.modulus, ih->d.u8+modulus, 128);
+	if (Verbose)
+		hexdump(Config.rsa.modulus, 128, "\n");
+
+	Config.rsa.public_exponent=
+		ntohl(*(uint32_t*)(ih->d.u8+exponent));
+	printf("          exponent @%x=%d\n", exponent,
+		Config.rsa.public_exponent);
+
+	printf(" default signature @%x\n", exponent+4);
+	memcpy(Config.rsa.default_signature, ih->d.u8+exponent+4, 1024/8);
+	if (Verbose)
+		hexdump(Config.rsa.default_signature, 1024/8, "\n");
+
+	return 0;
+}
+
 static int FindROMSYS(struct ImageHandle *ih)
 {
 	/* autodetect? */
