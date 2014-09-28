@@ -33,7 +33,6 @@
 #include <assert.h>
 #include <errno.h>
 #include <ctype.h>	/* isprint() */
-#include <arpa/inet.h>	/* ntohl() */
 
 #include "os/os.h"
 
