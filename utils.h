@@ -31,6 +31,7 @@ enum Padding {
     PADDING_NONE=0,
     PADDING_00,
     PADDING_FF,
+    PADDING_TRY_512K_CRC,
     PADDING_DOUBLED
 };
 

@@ -368,10 +368,15 @@ int main(int argc, char **argv)
 			printf("File is padded from 512k to 1024k with 0xFF. Treating as 512k\n");
 				ih.len=512*1024;
 			ih.pad = PADDING_FF;
+		} else if (bytecmp(ih.d.u8+512*1024, 0xff, 512*1024-32)==0) {
+			printf("File is padded from 512k to 1024k with 0xFF. Treating as 1024k but will try 512k CRC hardcoded blocks\n");
+			ih.pad = PADDING_TRY_512K_CRC;
+/*
 		} else if (bytecmp(ih.d.u8+512*1024, 0, 512*1024)==0) {
 			printf("File is padded from 512k to 1024k with zeros. Treating as 512k\n");
 				ih.len=512*1024;
 			ih.pad = PADDING_00;
+*/
 		}
 	}
 
@@ -1234,7 +1239,7 @@ static int FindMainCRCBlks(const struct ImageHandle *ih)
 
 	if (ret0||ret1)
 	{
-		if (ih->len==512*1024)
+		if (ih->len==512*1024 || ih->pad == PADDING_TRY_512K_CRC)
 		{
 			printf("missing\n");
 			printf(" Falling back to default 512k CRC blocks...");
