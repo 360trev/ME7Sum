@@ -940,19 +940,19 @@ E6 F4 14 6B E6 F5 81 00
 		ntohl(*(uint32_t*)(ih->d.u8+exponent));
 	memcpy(Config.rsa.default_signature, ih->d.u8+exponent+4, 1024/8);
 
-	printf("         signature @%x-%x\n", signature, signature+RSA_BLOCK_SIZE/8);
+	printf("         Signature: @%x-%x\n", signature, signature+RSA_BLOCK_SIZE/8);
 	if (Verbose>1)
 		hexdump(Config.rsa.signature, RSA_BLOCK_SIZE/8, "\n");
 
-	printf("           modulus @%x-%x\n", modulus, modulus+RSA_BLOCK_SIZE/8);
+	printf("           Modulus: @%x-%x\n", modulus, modulus+RSA_BLOCK_SIZE/8);
 	if (Verbose>1)
 		hexdump(Config.rsa.modulus, RSA_BLOCK_SIZE/8, "\n");
 
-	printf("          exponent @%x=%d\n", exponent,
+	printf("          Exponent: @%x = %d\n", exponent,
 		Config.rsa.public_exponent);
 
 	if (Verbose>2) {
-		printf(" default signature @%x-%x\n", exponent+4, exponent+4+RSA_BLOCK_SIZE/8);
+		printf(" Default Signature @%x-%x\n", exponent+4, exponent+4+RSA_BLOCK_SIZE/8);
 		hexdump(Config.rsa.default_signature, RSA_BLOCK_SIZE/8, "\n");
 	}
 
@@ -995,7 +995,7 @@ static int FindMD5Ranges(struct ImageHandle *ih)
 			memcpy_from_le32(buf, ih->d.u8+table, sizeof(buf));
 			for (i=0;i<count;i++) {
 				Config.rsa.md5[i].start = buf[i];	/* first n are start */
-				Config.rsa.md5[i].end = buf[i+4]+1;	/* next n are end */
+				Config.rsa.md5[i].end = buf[i+4];	/* next n are end */
 				DEBUG_RSA("0x%08x: 0x%08x-0x%08x\n", table+i,
 					Config.rsa.md5[i].start, Config.rsa.md5[i].end);
 				NormalizeRange(ih, Config.rsa.md5+i);
@@ -1041,8 +1041,8 @@ static int DoRSA(struct ImageHandle *ih)
 
 	for(i=1;i<127 && buf[i]; i++);
 	i++;
-	if (Verbose>2) {
-		printf("signature: ");
+	if (Verbose>1) {
+		printf("signature->MD5: ");
 		hexdump(buf+i, 128-i-1, "\n");
 	}
 
@@ -1052,8 +1052,8 @@ static int DoRSA(struct ImageHandle *ih)
 
 	for(i=1;i<127 && dbuf[i]; i++);
 	i++;
-	if (Verbose>1) {
-		printf("default signature: ");
+	if (Verbose>2) {
+		printf("default signature->MD5: ");
 		hexdump(dbuf+i, 128-i-1, "\n");
 	}
 
@@ -1061,7 +1061,7 @@ static int DoRSA(struct ImageHandle *ih)
 
 	MD5_Init(&ctx);
 	for(i=0;i<MD5_MAX_BLKS;i++) {
-		int len=Config.rsa.md5[i].end-Config.rsa.md5[i].start;
+		int len=Config.rsa.md5[i].end-Config.rsa.md5[i].start+1;
 		if (len>0) {
 			printf(" %d) Adr: 0x%08X-0x%08X\n", i, Config.rsa.md5[i].start, Config.rsa.md5[i].end);
 			MD5_Update(&ctx, ih->d.u8+Config.rsa.md5[i].start, len);
