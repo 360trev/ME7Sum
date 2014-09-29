@@ -140,6 +140,8 @@ int search_image(const struct ImageHandle *ih, size_t start, const void *needle,
 
 void hexdump(uint8_t *buf, int len, const char *end)
 {
-    while(len--) printf("%02x%s", *buf++, len?" ":"");
+    int i=len;
+    while(i--)
+	printf("%02x%s", *buf++, ((i&0xf)==0 && len>32)?"\n":i?" ":"");
     printf("%s", end);
 }

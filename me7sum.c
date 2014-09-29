@@ -40,6 +40,8 @@
 #include "crc32.h"
 #include "str.h"
 #include "utils.h"
+#include "md5.h"
+#include "rsa.h"
 
 //#define DEBUG_ROM_INFO
 //#define DEBUG_RSA_MATCHING
@@ -51,6 +53,7 @@
 #include "debug.h"
 
 #define CHECK_BOOTROM_MP
+#define RSA_BLOCK_SIZE	1024
 
 /* Images with 2+64 main mp descriptors do not have an end marker */
 #ifdef CHECK_BOOTROM_MP
@@ -76,16 +79,18 @@ struct MultipointDescriptor {
 };
 
 #define MAX_CRC_BLKS 4
+#define MD5_MAX_BLKS 4
 // main firmware checksum validation
 struct rom_config {
 	int			readonly;
 	uint32_t	base_address;				/* rom base address */
 
 	struct {
-		uint8_t signature[1024/8];
-		uint8_t modulus[128];
+		uint8_t signature[RSA_BLOCK_SIZE/8];
+		uint8_t modulus[RSA_BLOCK_SIZE/8];
 		int public_exponent;
-		uint8_t default_signature[1024/8];
+		uint8_t default_signature[RSA_BLOCK_SIZE/8];
+		struct Range md5[MD5_MAX_BLKS];
 	} rsa;
 	uint32_t	romsys;
 
@@ -166,10 +171,12 @@ static InfoListItem romInfo[] = {
 static int GetRomDump(const struct ImageHandle *ih, struct section *osconfig);
 static int GetRomInfo(const struct ImageHandle *ih, struct section *osconfig);
 
-static int FindRSA(struct ImageHandle *ih);
-
 static int FindROMSYS(struct ImageHandle *ih);
 static int DoROMSYS(struct ImageHandle *ih);
+
+static int FindRSAOffsets(struct ImageHandle *ih);
+static int FindMD5Ranges(struct ImageHandle *ih);
+static int DoRSA(struct ImageHandle *ih);
 
 static int FindMainCRCPreBlk(const struct ImageHandle *ih);
 static int FindMainCRCBlks(const struct ImageHandle *ih);
@@ -385,9 +392,6 @@ int main(int argc, char **argv)
 
 	DEBUG_EXIT_ROM;
 
-	FindRSA(&ih);
-	DEBUG_EXIT_RSA;
-
 	//
 	// Step #1 ROMSYS
 	//
@@ -411,7 +415,25 @@ int main(int argc, char **argv)
 	DEBUG_EXIT_ROMSYS;
 
 	//
-	// Step #2 Main data checksums if specified
+	// Step #2 RSA
+	//
+	printf("\nStep #%d: Reading RSA signatures ..\n", ++Step);
+
+	FindRSAOffsets(&ih);
+	if(Config.rsa.public_exponent>0) {
+		FindMD5Ranges(&ih);
+		if (Config.rsa.md5[0].start && Config.rsa.md5[0].end) {
+			DoRSA(&ih);
+		} else {
+			printf("Step #%d: ERROR! Detected RSA signature, but no MD5 regions\n", Step);
+			ErrorsUncorrectable++;
+		}
+	}
+	DEBUG_EXIT_RSA;
+
+
+	//
+	// Step #3 Main data checksums if specified
 	//
 	printf("\nStep #%d: Reading Main Data Checksums ..\n", ++Step);
 
@@ -458,7 +480,7 @@ int main(int argc, char **argv)
 	DEBUG_EXIT_CRC;
 
 	//
-	// Step #3 Main program checksums
+	// Step #4 Main program checksums
 	//
 	printf("\nStep #%d: Reading Main Program Checksums ..\n", ++Step);
 	if(Config.main_checksum_offset==0)
@@ -484,7 +506,7 @@ int main(int argc, char **argv)
 	DEBUG_EXIT_MAIN;
 
 	//
-	// Step #4 Multi point checksums
+	// Step #5 Multi point checksums
 	//
 	printf("\nStep #%d: Reading Multipoint Checksum Blocks ..\n", ++Step);
 
@@ -752,11 +774,12 @@ static int FindData(const struct ImageHandle *ih, const char *what,
 			uint16_t high=le16toh(ih->d.u16[i/2+off_h]);
 			uint32_t addr=(high<<16) | low;
 
+			if (Verbose>1) {
+				printf("Found possible %s #%d at 0x%x (from 0x%x)\n",
+					what, found+1, addr, i);
+			}
+
 			if (addr>Config.base_address && addr-Config.base_address<ih->len) {
-				if (Verbose>1) {
-					printf("Found possible %s #%d at 0x%x (from 0x%x)\n",
-						what, found+1, addr, i);
-				}
 				if (Verbose>2) {
 					hexdump(ih->d.u8+i-4, 4, " [");
 					hexdump(ih->d.u8+i, len, "] ");
@@ -840,7 +863,7 @@ static int NormalizeRange(const struct ImageHandle *ih, struct Range *r)
 }
 
 /* Actual work */
-static int FindRSA(struct ImageHandle *ih)
+static int FindRSAOffsets(struct ImageHandle *ih)
 {
 	int signature=0;
 	int modulus=0;
@@ -855,14 +878,14 @@ E6 F4 94 6A.E6 F5.81 00
 88 50
 88 40 E6 FC BA 4E E6 FD
 */
-	    //                                     LL    LL                HH    HH          
+	    //                                     LL    LL                HH    HH
 		{0x80, 0x00, 0x88, 0x40, 0xE6, 0xF4, 0x00, 0x00, 0xE6, 0xF5, 0x80, 0x00, 0x88, 0x50},
 /*
 E6 FE 21 00 DA 8A 7A A0 08 06
 E0 44 88 40
 E6 F4 14 6B E6 F5 81 00
 88 50
-88 40 E6 FC B2 4D E6 FD 
+88 40 E6 FC B2 4D E6 FD
 */
 		{0xE0, 0x44, 0x88, 0x40, 0xE6, 0xF4, 0x00, 0x00, 0xE6, 0xF5, 0x80, 0x00, 0x88, 0x50}
 	};
@@ -907,29 +930,169 @@ E6 F4 14 6B E6 F5 81 00
 
 	if (ret) return ret;
 
-	if (signature+1024/8>=ih->len) return -1;
-	if (modulus+128>=ih->len) return -1;
-	if (exponent+4+1024/8>=ih->len) return -1;
+	if (signature+RSA_BLOCK_SIZE/8>=ih->len) return -1;
+	if (modulus+RSA_BLOCK_SIZE/8>=ih->len) return -1;
+	if (exponent+4+RSA_BLOCK_SIZE/8>=ih->len) return -1;
 
-	printf("         signature @%x\n", signature);
-	memcpy(Config.rsa.signature, ih->d.u8+signature, 1024/8);
-	if (Verbose)
-		hexdump(Config.rsa.signature, 1024/8, "\n");
-
-	printf("           modulus @%x\n", modulus);
-	memcpy(Config.rsa.modulus, ih->d.u8+modulus, 128);
-	if (Verbose)
-		hexdump(Config.rsa.modulus, 128, "\n");
-
+	memcpy(Config.rsa.signature, ih->d.u8+signature, RSA_BLOCK_SIZE/8);
+	memcpy(Config.rsa.modulus, ih->d.u8+modulus, RSA_BLOCK_SIZE/8);
 	Config.rsa.public_exponent=
 		ntohl(*(uint32_t*)(ih->d.u8+exponent));
+	memcpy(Config.rsa.default_signature, ih->d.u8+exponent+4, 1024/8);
+
+	printf("         signature @%x-%x\n", signature, signature+RSA_BLOCK_SIZE/8);
+	if (Verbose>1)
+		hexdump(Config.rsa.signature, RSA_BLOCK_SIZE/8, "\n");
+
+	printf("           modulus @%x-%x\n", modulus, modulus+RSA_BLOCK_SIZE/8);
+	if (Verbose>1)
+		hexdump(Config.rsa.modulus, RSA_BLOCK_SIZE/8, "\n");
+
 	printf("          exponent @%x=%d\n", exponent,
 		Config.rsa.public_exponent);
 
-	printf(" default signature @%x\n", exponent+4);
-	memcpy(Config.rsa.default_signature, ih->d.u8+exponent+4, 1024/8);
-	if (Verbose)
-		hexdump(Config.rsa.default_signature, 1024/8, "\n");
+	if (Verbose>2) {
+		printf(" default signature @%x-%x\n", exponent+4, exponent+4+RSA_BLOCK_SIZE/8);
+		hexdump(Config.rsa.default_signature, RSA_BLOCK_SIZE/8, "\n");
+	}
+
+	return 0;
+}
+
+static int FindMD5Ranges(struct ImageHandle *ih)
+{
+	//           r                                         LL    LL
+	uint8_t needle[] =
+		{0xE1, 0x08, 0xF7, 0xF8, 0xE5, 0xF9, 0xF2, 0xF4, 0x00, 0x00, 0xF2, 0xF5, 0x00, 0x00, 0xF6, 0xF4};
+	uint8_t   mask[] =
+		{0xff, 0x0f, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x00, 0x00, 0xff, 0xff, 0x00, 0x00, 0xff, 0xff};
+
+	int found=0, i=0;
+	int addr=-1;
+
+	printf(" Searching for MD5 ranges...");
+	for(i=0;i+sizeof(needle)+2<ih->len;i+=2) {
+		i=search_image(ih, i, needle, mask, sizeof(needle), 2);
+		if(i<0) break;
+		if(i+sizeof(needle)<ih->len) {
+			found++;
+			DEBUG_RSA(" Found possible MD5 ASM #%d @0x%x\n", found, i);
+			addr=i;
+		}
+	}
+
+	if (found!=1) {
+		printf("missing\n");
+		return -1;
+	} else {
+		uint8_t *p = ih->d.u8+addr;
+		int count = ((p[1]&0xf0)>>4)+1;
+		uint16_t *off = ih->d.u16+(addr/2);
+		int table=le16toh(off[4])|0x10000;	/* FIXME: hardcoded HH HH to 0x0081xxxx? */
+		DEBUG_RSA(" Found MD5 ASM @0x%x (table=%x, count=%d)\n", addr, table, count);
+		if(count>0 && count<=MD5_MAX_BLKS) {
+			uint32_t buf[count*2];
+			memcpy_from_le32(buf, ih->d.u8+table, sizeof(buf));
+			for (i=0;i<count;i++) {
+				Config.rsa.md5[i].start = buf[i];	/* first n are start */
+				Config.rsa.md5[i].end = buf[i+4]+1;	/* next n are end */
+				DEBUG_RSA("0x%08x: 0x%08x-0x%08x\n", table+i,
+					Config.rsa.md5[i].start, Config.rsa.md5[i].end);
+				NormalizeRange(ih, Config.rsa.md5+i);
+			}
+		}
+	}
+
+	printf("OK\n");
+	return 0;
+}
+
+static int DoRSA(struct ImageHandle *ih)
+{
+	public_key kp;
+	mpz_t M, DM, C, DC;
+	uint8_t buf[RSA_BLOCK_SIZE/8];
+	uint8_t dbuf[RSA_BLOCK_SIZE/8];
+	uint8_t md5[16];
+	uint8_t calc_md5[16];
+	MD5_CTX ctx;
+	int i;
+
+	memset(md5, 0, sizeof(md5));
+	memset(calc_md5, 0, sizeof(calc_md5));
+
+	mpz_init(kp.n);
+	mpz_init(kp.e);
+	mpz_init(M);
+	mpz_init(DM);
+	mpz_init(C);
+	mpz_init(DC);
+
+	mpz_import(kp.n, RSA_BLOCK_SIZE/8, 1, 1, 0, 0, Config.rsa.modulus);
+	mpz_set_ui(kp.e, Config.rsa.public_exponent);
+	mpz_import(M, RSA_BLOCK_SIZE/8, 1, 1, 0, 0, Config.rsa.signature);
+	mpz_import(DM, RSA_BLOCK_SIZE/8, 1, 1, 0, 0, Config.rsa.default_signature);
+
+	block_encrypt(C, M, kp);
+	block_encrypt(DC, DM, kp);
+
+	mpz_export(buf, NULL, 1, 1, 0, 0, C);
+	mpz_export(dbuf, NULL, 1, 1, 0, 0, DC);
+
+	for(i=1;i<127 && buf[i]; i++);
+	i++;
+	if (Verbose>2) {
+		printf("signature: ");
+		hexdump(buf+i, 128-i-1, "\n");
+	}
+
+	if (128-i-1 == sizeof(md5)) {
+		memcpy(md5, buf+i, sizeof(md5));
+	}
+
+	for(i=1;i<127 && dbuf[i]; i++);
+	i++;
+	if (Verbose>1) {
+		printf("default signature: ");
+		hexdump(dbuf+i, 128-i-1, "\n");
+	}
+
+	ChecksumsFound ++;
+
+	MD5_Init(&ctx);
+	for(i=0;i<MD5_MAX_BLKS;i++) {
+		int len=Config.rsa.md5[i].end-Config.rsa.md5[i].start;
+		if (len>0) {
+			printf(" %d) Adr: 0x%08X-0x%08X\n", i, Config.rsa.md5[i].start, Config.rsa.md5[i].end);
+			MD5_Update(&ctx, ih->d.u8+Config.rsa.md5[i].start, len);
+		}
+	}
+
+	MD5_Final(calc_md5, &ctx);
+
+	printf(" EncrMD5: ");
+	hexdump(md5, 16, "\n");
+	printf(" CalcMD5: ");
+	hexdump(calc_md5, 16, "");
+
+	if (memcmp(md5, calc_md5, 16)) {
+		ErrorsFound++;
+		if (Config.readonly)
+		{
+			printf("  ** NOT OK **\n");
+			return -1;
+		}
+		else
+		{
+			// ErrorsCorrected++;
+			ErrorsUncorrectable++;
+			printf("  ** UNFIXABLE **\n");
+		}
+	}
+	else
+	{
+		printf("  OK\n");
+	}
 
 	return 0;
 }
@@ -1206,7 +1369,7 @@ static int FindMainCRCBlks(const struct ImageHandle *ih)
 	}
 
 	if (!found)
-	{	
+	{
 		DEBUG_CRC("CRC/csum block start find failed\n");
 	}
 	else if (found>MAX_CRC_BLKS)
@@ -1229,7 +1392,7 @@ static int FindMainCRCBlks(const struct ImageHandle *ih)
 	}
 
 	if (!found)
-	{	
+	{
 		DEBUG_CRC("CRC/csum block end find failed\n");
 	}
 	else if (found>MAX_CRC_BLKS)
