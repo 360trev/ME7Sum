@@ -414,6 +414,7 @@ int main(int argc, char **argv)
 
 	DEBUG_EXIT_ROMSYS;
 
+
 	//
 	// Step #2 RSA
 	//
@@ -479,6 +480,7 @@ int main(int argc, char **argv)
 
 	DEBUG_EXIT_CRC;
 
+
 	//
 	// Step #4 Main program checksums
 	//
@@ -504,6 +506,7 @@ int main(int argc, char **argv)
 	}
 
 	DEBUG_EXIT_MAIN;
+
 
 	//
 	// Step #5 Multi point checksums
@@ -559,6 +562,10 @@ int main(int argc, char **argv)
 
 	DEBUG_EXIT_MULTIPOINT;
 
+
+	//
+	// All done!
+    //
 	printf("\n*** Found %d checksums in %s\n", ChecksumsFound, input);
 
 	if(ErrorsUncorrectable)
@@ -870,28 +877,13 @@ static int FindRSAOffsets(struct ImageHandle *ih)
 	int exponent=0;
 	int i;
 	int ret=0;
-	uint8_t needle[2][14] = {
-/*
-21 00 DA 8A 7A A0 08 06 E6 F4
-80 00 88 40
-E6 F4 94 6A.E6 F5.81 00
-88 50
-88 40 E6 FC BA 4E E6 FD
-*/
+	static const uint8_t needle[2][14] = {
 	    //                                     LL    LL                HH    HH
 		{0x80, 0x00, 0x88, 0x40, 0xE6, 0xF4, 0x00, 0x00, 0xE6, 0xF5, 0x80, 0x00, 0x88, 0x50},
-/*
-E6 FE 21 00 DA 8A 7A A0 08 06
-E0 44 88 40
-E6 F4 14 6B E6 F5 81 00
-88 50
-88 40 E6 FC B2 4D E6 FD
-*/
 		{0xE0, 0x44, 0x88, 0x40, 0xE6, 0xF4, 0x00, 0x00, 0xE6, 0xF5, 0x80, 0x00, 0x88, 0x50}
 	};
-	uint8_t   mask[] =
+	static const uint8_t mask[] =
 		{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x00, 0x00, 0xff, 0xff, 0xf0, 0xff, 0xff, 0xff};
-
 
 	for(i=0;i<2;i++) {
 		int found;
@@ -903,7 +895,6 @@ E6 F4 14 6B E6 F5 81 00
 
 		if (found==(i?1:2))
 		{
-			// crc0 is reserved for pre-region
 			DEBUG_RSA(" Found RSA offset #%d 0x%x\n", i, offset[0]);
 
 			if (i==0) {
