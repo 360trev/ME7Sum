@@ -105,6 +105,10 @@ void generate_keys(private_key* ku, public_key* kp)
     mpz_set(kp->e, ku->e);
     mpz_set(kp->n, ku->n);
 
+    mpz_clear(phi);
+    mpz_clear(tmp1);
+    mpz_clear(tmp2);
+
     return;
 }
 
@@ -167,6 +171,10 @@ int encrypt(char *cipher, const char *message, int length, public_key kp)
         block_count++;
         prog -= d_len;
     }
+
+    mpz_clear(m);
+    mpz_clear(c);
+
     return block_count * BLOCK_SIZE;
 }
 
@@ -216,6 +224,10 @@ int decrypt(char* message, const char* cipher, int length, private_key ku)
 
         msg_idx += BLOCK_SIZE - j;
     }
+
+    mpz_clear(c);
+    mpz_clear(m);
+
     return msg_idx;
 }
 
@@ -223,15 +235,21 @@ int decrypt(char* message, const char* cipher, int length, private_key ku)
 int main()
 {
     int i;
-    mpz_t M;  mpz_init(M);
-    mpz_t C;  mpz_init(C);
-    mpz_t DC;  mpz_init(DC);
+    mpz_t M;
+    mpz_t C;
+    mpz_t DC;
+
     private_key ku;
     public_key kp;
+
+    mpz_init(M);
+    mpz_init(C);
+    mpz_init(DC);
 
     // Initialize public key
     mpz_init(kp.n);
     mpz_init(kp.e);
+
     // Initialize private key
     mpz_init(ku.n);
     mpz_init(ku.e);
@@ -260,6 +278,20 @@ int main()
     printf("encrypted is [%s]\n", mpz_get_str(NULL, 16, C));
     block_decrypt(DC, C, ku);
     printf("decrypted is [%s]\n", mpz_get_str(NULL, 16, DC));
+
+    mpz_clear(M);
+    mpz_clear(C);
+    mpz_clear(DC);
+
+    mpz_clear(kp.n);
+    mpz_clear(kp.e);
+
+    mpz_clear(ku.n);
+    mpz_clear(ku.e);
+    mpz_clear(ku.d);
+    mpz_clear(ku.p);
+    mpz_clear(ku.q);
+
     return 0;
 }
 #endif

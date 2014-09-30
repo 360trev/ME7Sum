@@ -1083,6 +1083,17 @@ static int RSASign(struct ImageHandle *ih)
 
 	memcpy(ih->d.u8+Config.rsa.s, sig, RSA_BLOCK_SIZE/8);
 
+	mpz_clear(C);
+	mpz_clear(M);
+
+	mpz_clear(kp.n);
+	mpz_clear(kp.e);
+	mpz_clear(ku.n);
+	mpz_clear(ku.e);
+	mpz_clear(ku.d);
+	mpz_clear(ku.p);
+	mpz_clear(ku.q);
+
 	return 0;
 }
 
@@ -1124,6 +1135,13 @@ static int DoRSA(struct ImageHandle *ih)
 	}
 	mpz_export(buf, NULL, 1, 1, 0, 0, C);
 	mpz_export(dbuf, NULL, 1, 1, 0, 0, DC);
+
+	mpz_clear(kp.n);
+	mpz_clear(kp.e);
+	mpz_clear(M);
+	mpz_clear(DM);
+	mpz_clear(C);
+	mpz_clear(DC);
 
 	if(buf[0]==0x01 && buf[1]==0xff) {
 		for(i=1;i<127 && buf[i]; i++);
