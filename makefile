@@ -2,7 +2,7 @@
 
 TARGET = me7sum.exe
 SOURCES = crc32.c inifile_prop.c me7sum.c utils.c str.c inifile/inifile.c os/pgetopt.c rsa.c md5.c
-LIBRARIES = Ws2_32.lib # mpir/mpir.lib
+LIBRARIES = Ws2_32.lib mpir/mpir.lib
 
 CFLAGS = -D__GIT_VERSION=\"$(GIT_VERSION)\"
 
