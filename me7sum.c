@@ -982,7 +982,7 @@ static int FindMD5Ranges(struct ImageHandle *ih)
 		DEBUG_RSA(" Found MD5 ASM @0x%x (table=%x, count=%d)\n", addr, table,
 			count);
 		if(count>0 && count<=MD5_MAX_BLKS) {
-			uint32_t buf[count*2];
+			uint32_t buf[MD5_MAX_BLKS*2];
 			memcpy_from_le32(buf, ih->d.u8+table, sizeof(buf));
 			for (i=0;i<count;i++) {
 				Config.rsa.md5[i].start = buf[i];	/* first n are start */

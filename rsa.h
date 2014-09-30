@@ -1,4 +1,8 @@
+#ifdef _WIN32
+#include "mpir/gmp.h"
+#else
 #include <gmp.h>
+#endif
 
 typedef struct {
     mpz_t n; /* Modulus */
