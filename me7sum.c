@@ -86,10 +86,11 @@ struct rom_config {
 	uint32_t	base_address;				/* rom base address */
 
 	struct {
-		uint8_t signature[RSA_BLOCK_SIZE/8];
-		uint8_t modulus[RSA_BLOCK_SIZE/8];
-		int public_exponent;
-		uint8_t default_signature[RSA_BLOCK_SIZE/8];
+		uint32_t	n;	/* offset of modulus */
+		uint32_t	e;	/* offset of exponent */
+		uint32_t	s;	/* offset of signature */
+		uint32_t	ds; /* offset of default signature (unused?) */
+		int			exponent;	/* actual exponent */
 		struct Range md5[MD5_MAX_BLKS];
 	} rsa;
 	uint32_t	romsys;
@@ -421,7 +422,7 @@ int main(int argc, char **argv)
 	printf("\nStep #%d: Reading RSA signatures ..\n", ++Step);
 
 	FindRSAOffsets(&ih);
-	if(Config.rsa.public_exponent>0) {
+	if(Config.rsa.n && Config.rsa.s && Config.rsa.e) {
 		FindMD5Ranges(&ih);
 		if (Config.rsa.md5[0].start && Config.rsa.md5[0].end) {
 			DoRSA(&ih);
@@ -872,8 +873,7 @@ static int NormalizeRange(const struct ImageHandle *ih, struct Range *r)
 /* Actual work */
 static int FindRSAOffsets(struct ImageHandle *ih)
 {
-	int signature=0;
-	int modulus=0;
+	int s=0,n=0,e=0;
 	int exponent=0;
 	int i;
 	int ret=0;
@@ -895,14 +895,14 @@ static int FindRSAOffsets(struct ImageHandle *ih)
 
 		if (found==(i?1:2))
 		{
-			DEBUG_RSA(" Found RSA offset #%d 0x%x\n", i, offset[0]);
+			DEBUG_RSA(" Found RSA offset[0] #%d 0x%x\n", i, offset[0]);
 
 			if (i==0) {
-				DEBUG_RSA(" Found RSA offset #%d 0x%x\n", i, offset[1]);
-				signature=offset[0];
-				modulus=offset[1];
+				DEBUG_RSA(" Found RSA offset[1] #%d 0x%x\n", i, offset[1]);
+				s=offset[0];
+				n=offset[1];
 			} else {
-				exponent=offset[0];
+				e=offset[0];
 			}
 
 			printf("OK\n");
@@ -921,30 +921,25 @@ static int FindRSAOffsets(struct ImageHandle *ih)
 
 	if (ret) return ret;
 
-	if (signature+RSA_BLOCK_SIZE/8>=ih->len) return -1;
-	if (modulus+RSA_BLOCK_SIZE/8>=ih->len) return -1;
-	if (exponent+4+RSA_BLOCK_SIZE/8>=ih->len) return -1;
+	if (s+RSA_BLOCK_SIZE/8>=ih->len) return -1;
+	if (n+RSA_BLOCK_SIZE/8>=ih->len) return -1;
+	if (e+4+RSA_BLOCK_SIZE/8>=ih->len) return -1;
 
-	memcpy(Config.rsa.signature, ih->d.u8+signature, RSA_BLOCK_SIZE/8);
-	memcpy(Config.rsa.modulus, ih->d.u8+modulus, RSA_BLOCK_SIZE/8);
-	Config.rsa.public_exponent=
-		ntohl(*(uint32_t*)(ih->d.u8+exponent));
-	memcpy(Config.rsa.default_signature, ih->d.u8+exponent+4, 1024/8);
+	exponent=ntohl(*(uint32_t*)(ih->d.u8+e));
 
-	printf("         Signature: @%x-%x\n", signature, signature+RSA_BLOCK_SIZE/8);
-	if (Verbose>1)
-		hexdump(Config.rsa.signature, RSA_BLOCK_SIZE/8, "\n");
+	if (exponent!=3) return -1;
 
-	printf("           Modulus: @%x-%x\n", modulus, modulus+RSA_BLOCK_SIZE/8);
-	if (Verbose>1)
-		hexdump(Config.rsa.modulus, RSA_BLOCK_SIZE/8, "\n");
+	Config.rsa.s=s;
+	Config.rsa.n=n;
+	Config.rsa.e=e;
+	Config.rsa.ds=e+4;
+	Config.rsa.exponent=exponent;
 
-	printf("          Exponent: @%x = %d\n", exponent,
-		Config.rsa.public_exponent);
-
-	if (Verbose>2) {
-		printf(" Default Signature @%x-%x\n", exponent+4, exponent+4+RSA_BLOCK_SIZE/8);
-		hexdump(Config.rsa.default_signature, RSA_BLOCK_SIZE/8, "\n");
+	printf("         Signature: @%x-%x\n", s, s+RSA_BLOCK_SIZE/8);
+	printf("           Modulus: @%x-%x\n", n, n+RSA_BLOCK_SIZE/8);
+	printf("          Exponent: @%x = %d\n", e, exponent);
+	if (Verbose) {
+		printf(" Default Signature: @%x-%x\n", e+4, e+4+RSA_BLOCK_SIZE/8);
 	}
 
 	return 0;
@@ -960,6 +955,7 @@ static int FindMD5Ranges(struct ImageHandle *ih)
 
 	int found=0, i=0;
 	int addr=-1;
+	int table=0, count=0;
 
 	printf(" Searching for MD5 ranges...");
 	for(i=0;i+sizeof(needle)+2<ih->len;i+=2) {
@@ -977,10 +973,14 @@ static int FindMD5Ranges(struct ImageHandle *ih)
 		return -1;
 	} else {
 		uint8_t *p = ih->d.u8+addr;
-		int count = ((p[1]&0xf0)>>4)+1;
-		uint16_t *off = ih->d.u16+(addr/2);
-		int table=le16toh(off[4])|0x10000;	/* FIXME: hardcoded HH HH to 0x0081xxxx? */
-		DEBUG_RSA(" Found MD5 ASM @0x%x (table=%x, count=%d)\n", addr, table, count);
+		uint16_t *p16 = ih->d.u16+(addr/2);
+
+		count = ((p[1]&0xf0)>>4)+1;
+		/* FIXME: hardcoded HH HH to 0x0081xxxx? */
+		table =le16toh(p16[4])|0x10000;
+
+		DEBUG_RSA(" Found MD5 ASM @0x%x (table=%x, count=%d)\n", addr, table,
+			count);
 		if(count>0 && count<=MD5_MAX_BLKS) {
 			uint32_t buf[count*2];
 			memcpy_from_le32(buf, ih->d.u8+table, sizeof(buf));
@@ -995,6 +995,94 @@ static int FindMD5Ranges(struct ImageHandle *ih)
 	}
 
 	printf("OK\n");
+
+	printf(" MD5 Block Offset Table @%05x [%d bytes]:\n",
+		table, count * 2 * sizeof(uint32_t));
+
+	return 0;
+}
+
+static int RSASign(struct ImageHandle *ih)
+{
+	uint8_t calc_md5[16];
+	uint8_t msg[RSA_BLOCK_SIZE/8];
+	uint8_t n[RSA_BLOCK_SIZE/8];
+	uint8_t sig[RSA_BLOCK_SIZE/8];
+	private_key ku;
+	public_key kp;
+	mpz_t M, C;
+	MD5_CTX ctx;
+	int i;
+
+	// Initialize public key
+	mpz_init(kp.n);
+	mpz_init(kp.e);
+	// Initialize private key
+	mpz_init(ku.n);
+	mpz_init(ku.e);
+	mpz_init(ku.d);
+	mpz_init(ku.p);
+	mpz_init(ku.q);
+
+	/* assumes exp 3 */
+	generate_keys(&ku, &kp);
+
+	if (Verbose>1) {
+		printf("\n");
+		printf("---------------Private Key-----------------\n");
+		printf("kp.n is [%s]\n", mpz_get_str(NULL, 16, kp.n));
+		printf("kp.e is [%s]\n", mpz_get_str(NULL, 16, kp.e));
+		printf("---------------Public Key------------------\n");
+		printf("ku.n is [%s]\n", mpz_get_str(NULL, 16, ku.n));
+		printf("ku.e is [%s]\n", mpz_get_str(NULL, 16, ku.e));
+		printf("ku.d is [%s]\n", mpz_get_str(NULL, 16, ku.d));
+		printf("ku.p is [%s]\n", mpz_get_str(NULL, 16, ku.p));
+		printf("ku.q is [%s]\n", mpz_get_str(NULL, 16, ku.q));
+	}
+
+	/* put new modulus in place */
+	memset(n, 0, sizeof(n));
+	mpz_export(n, NULL, 1, 1, 0, 0, kp.n);
+	memcpy(ih->d.u8+Config.rsa.n, n, RSA_BLOCK_SIZE/8);
+
+	/* recalc MD5 */
+	MD5_Init(&ctx);
+	for(i=0;i<MD5_MAX_BLKS;i++) {
+		int len=Config.rsa.md5[i].end-Config.rsa.md5[i].start+1;
+		if (len>0) {
+			printf(" %d) Adr: 0x%08X-0x%08X\n", i+1, Config.rsa.md5[i].start, Config.rsa.md5[i].end);
+			MD5_Update(&ctx, ih->d.u8+Config.rsa.md5[i].start, len);
+		}
+	}
+	MD5_Final(calc_md5, &ctx);
+
+	/* padding */
+	memset(msg, 0xff, sizeof(msg));
+	msg[0]=0x01;
+	msg[127-17]=0x00;
+	/* put md5 into message */
+	memcpy(msg+127-16, calc_md5, 16);
+	msg[127]=0x00;
+
+	/* setup decryption */
+	mpz_init(C);
+	mpz_init(M);
+	mpz_import(C, sizeof(msg), 1, 1, 0, 0, msg);
+	block_decrypt(M, C, ku);
+
+	memset(sig, 0, sizeof(sig));
+	mpz_export(sig, NULL, 1, 1, 0, 0, M);
+
+	if (Verbose>1) {
+		hexdump(msg, RSA_BLOCK_SIZE/8, "\n");
+		printf("kp.n is [%s]\n", mpz_get_str(NULL, 16, kp.n));
+		printf("M is [%s]\n", mpz_get_str(NULL, 16, M));
+		hexdump(n, RSA_BLOCK_SIZE/8, "\n");
+		hexdump(sig, RSA_BLOCK_SIZE/8, "\n");
+	}
+
+	memcpy(ih->d.u8+Config.rsa.s, sig, RSA_BLOCK_SIZE/8);
+
 	return 0;
 }
 
@@ -1005,6 +1093,7 @@ static int DoRSA(struct ImageHandle *ih)
 	uint8_t buf[RSA_BLOCK_SIZE/8];
 	uint8_t dbuf[RSA_BLOCK_SIZE/8];
 	uint8_t md5[16];
+	uint8_t dmd5[16];
 	uint8_t calc_md5[16];
 	MD5_CTX ctx;
 	int i;
@@ -1019,33 +1108,51 @@ static int DoRSA(struct ImageHandle *ih)
 	mpz_init(C);
 	mpz_init(DC);
 
-	mpz_import(kp.n, RSA_BLOCK_SIZE/8, 1, 1, 0, 0, Config.rsa.modulus);
-	mpz_set_ui(kp.e, Config.rsa.public_exponent);
-	mpz_import(M, RSA_BLOCK_SIZE/8, 1, 1, 0, 0, Config.rsa.signature);
-	mpz_import(DM, RSA_BLOCK_SIZE/8, 1, 1, 0, 0, Config.rsa.default_signature);
+	mpz_import(kp.n, RSA_BLOCK_SIZE/8, 1, 1, 0, 0, ih->d.u8+Config.rsa.n);
+	mpz_set_ui(kp.e, Config.rsa.exponent);
+	mpz_import(M, RSA_BLOCK_SIZE/8, 1, 1, 0, 0, ih->d.u8+Config.rsa.s);
+	mpz_import(DM, RSA_BLOCK_SIZE/8, 1, 1, 0, 0, ih->d.u8+Config.rsa.ds);
 
 	block_encrypt(C, M, kp);
 	block_encrypt(DC, DM, kp);
 
+	if (Verbose>1) {
+		printf("modulus:\n");
+		hexdump(ih->d.u8+Config.rsa.n, 128, "\n");
+		printf("signature:\n");
+		hexdump(ih->d.u8+Config.rsa.s, 128, "\n");
+	}
 	mpz_export(buf, NULL, 1, 1, 0, 0, C);
 	mpz_export(dbuf, NULL, 1, 1, 0, 0, DC);
 
-	for(i=1;i<127 && buf[i]; i++);
-	i++;
-	if (Verbose>1) {
-		printf("signature->MD5: ");
-		hexdump(buf+i, 128-i-1, "\n");
+	if(buf[0]==0x01 && buf[1]==0xff) {
+		for(i=1;i<127 && buf[i]; i++);
+		i++;
+
+		if (128-i-1 == sizeof(md5)) {
+			memcpy(md5, buf+i, sizeof(md5));
+		}
+
+		if (Verbose>1) {
+			printf("signature->MD5: ");
+			hexdump(md5, 16, "\n");
+			hexdump(buf, 128, "\n");
+		}
 	}
 
-	if (128-i-1 == sizeof(md5)) {
-		memcpy(md5, buf+i, sizeof(md5));
-	}
+	if(dbuf[0]==0x01 && buf[1]==0xff) {
+		for(i=1;i<127 && dbuf[i]; i++);
+		i++;
 
-	for(i=1;i<127 && dbuf[i]; i++);
-	i++;
-	if (Verbose>2) {
-		printf("default signature->MD5: ");
-		hexdump(dbuf+i, 128-i-1, "\n");
+		if (128-i-1 == sizeof(md5)) {
+			memcpy(dmd5, dbuf+i, sizeof(md5));
+		}
+
+		if (Verbose>2) {
+			printf("default signature->MD5: ");
+			hexdump(dmd5, 16, "\n");
+			hexdump(dbuf, 128, "\n");
+		}
 	}
 
 	ChecksumsFound ++;
@@ -1075,9 +1182,13 @@ static int DoRSA(struct ImageHandle *ih)
 		}
 		else
 		{
-			// ErrorsCorrected++;
-			ErrorsUncorrectable++;
-			printf("  ** UNFIXABLE **\n");
+			if (RSASign(ih)) {
+				ErrorsUncorrectable++;
+				printf("  ** UNFIXABLE **\n");
+			} else {
+				ErrorsCorrected++;
+				printf("  ** FIXED **\n");
+			}
 		}
 	}
 	else
