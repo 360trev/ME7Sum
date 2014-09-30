@@ -1006,6 +1006,7 @@ static int RSASign(struct ImageHandle *ih)
 {
 	uint8_t calc_md5[16];
 	uint8_t msg[RSA_BLOCK_SIZE/8];
+	uint8_t nmsg[RSA_BLOCK_SIZE/8];
 	uint8_t n[RSA_BLOCK_SIZE/8];
 	uint8_t sig[RSA_BLOCK_SIZE/8];
 	private_key ku;
@@ -1076,14 +1077,35 @@ static int RSASign(struct ImageHandle *ih)
 	mpz_export(sig, NULL, 1, 1, 0, 0, M);
 
 	if (Verbose>1) {
+		printf("padded md5 is:\n");
 		hexdump(msg, RSA_BLOCK_SIZE/8, "\n");
 		printf("kp.n is [%s]\n", mpz_get_str(NULL, 16, kp.n));
 		printf("M is [%s]\n", mpz_get_str(NULL, 16, M));
 		hexdump(n, RSA_BLOCK_SIZE/8, "\n");
+		printf("new sig is:\n");
 		hexdump(sig, RSA_BLOCK_SIZE/8, "\n");
 	}
 
-	memcpy(ih->d.u8+Config.rsa.s, sig, RSA_BLOCK_SIZE/8);
+	/* verify that the RSA signature will generate the new MD5 with new pub key */
+	block_encrypt(C, M, kp);
+	memset(nmsg, 0, sizeof(msg));
+	mpz_export(nmsg, NULL, 1, 1, 0, 0, C);
+
+	if(Verbose>1) {
+		printf("new padded md5 is:\n");
+		hexdump(nmsg, RSA_BLOCK_SIZE/8, "\n");
+	}
+
+	if(memcmp(msg, nmsg, sizeof(msg))==0) {
+		memcpy(ih->d.u8+Config.rsa.s, sig, RSA_BLOCK_SIZE/8);
+	} else {
+		printf("padded md5 is:\n");
+		hexdump(msg, RSA_BLOCK_SIZE/8, "\n");
+		printf("new padded md5 is:\n");
+		hexdump(nmsg, RSA_BLOCK_SIZE/8, "\n");
+		printf("FAILED\n");
+		ret=-1;
+	}
 
 	mpz_clear(C);
 	mpz_clear(M);

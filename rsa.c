@@ -34,6 +34,8 @@ static void generate_primes(private_key *ku)
     mpz_init(tmp1);
     mpz_init(tmp2);
 
+    srand(time(NULL));
+
     /* Select p and q */
     /* Start with p */
     // Set the bits of tmp randomly
@@ -47,6 +49,7 @@ static void generate_primes(private_key *ku)
     mpz_import(tmp1, BUFFER_SIZE, 1, sizeof(buf[0]), 0, 0, buf);
     // Pick the next prime starting from that random number
     mpz_nextprime(ku->p, tmp1);
+
     /* Make sure this is a good choice*/
     mpz_mod(tmp2, ku->p, ku->e);        /* If p mod e == 1, gcd(phi, e) != 1 */
     while(!mpz_cmp_ui(tmp2, 1))
@@ -89,8 +92,6 @@ int generate_keys(private_key* ku, public_key* kp)
     mpz_init(phi);
     mpz_init(tmp1);
     mpz_init(tmp2);
-
-    srand(time(NULL));
 
     /* Insetead of selecting e st. gcd(phi, e) = 1; 1 < e < phi, lets choose e
      * first then pick p,q st. gcd(e, p-1) = gcd(e, q-1) = 1 */
