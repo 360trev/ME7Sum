@@ -44,8 +44,8 @@
 #include "rsa.h"
 
 //#define DEBUG_ROM_INFO
-//#define DEBUG_RSA_MATCHING
 //#define DEBUG_ROMSYS_MATCHING
+//#define DEBUG_RSA_MATCHING
 //#define DEBUG_CRC_MATCHING
 //#define DEBUG_MAIN_MATCHING
 //#define DEBUG_MULTIPOINT_MATCHING
@@ -949,9 +949,9 @@ static int FindMD5Ranges(struct ImageHandle *ih)
 {
 	//           r                                         LL    LL
 	uint8_t needle[] =
-		{0xE1, 0x08, 0xF7, 0xF8, 0xE5, 0xF9, 0xF2, 0xF4, 0x00, 0x00, 0xF2, 0xF5, 0x00, 0x00, 0xF6, 0xF4};
+		{0xE1, 0x08, 0xF7, 0xF8, 0x00, 0xF0, 0xF2, 0xF4, 0x00, 0x00, 0xF2, 0xF5, 0x00, 0x00, 0xF6, 0xF4};
 	uint8_t   mask[] =
-		{0xff, 0x0f, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x00, 0x00, 0xff, 0xff, 0x00, 0x00, 0xff, 0xff};
+		{0xff, 0xcf, 0x00, 0x00, 0x00, 0xf0, 0xff, 0xff, 0x00, 0x00, 0xff, 0xff, 0x00, 0x00, 0x00, 0xff};
 
 	int found=0, i=0;
 	int addr=-1;
@@ -997,7 +997,7 @@ static int FindMD5Ranges(struct ImageHandle *ih)
 	printf("OK\n");
 
 	printf(" MD5 Block Offset Table @%05x [%d bytes]:\n",
-		table, count * 2 * sizeof(uint32_t));
+		table, count * 2 * (int)sizeof(uint32_t));
 
 	return 0;
 }
@@ -1168,10 +1168,12 @@ static int DoRSA(struct ImageHandle *ih)
 
 	MD5_Final(calc_md5, &ctx);
 
+	//printf("DEncrMD5: ");
+	//hexdump(dmd5, 16, "\n");
 	printf(" EncrMD5: ");
 	hexdump(md5, 16, "\n");
 	printf(" CalcMD5: ");
-	hexdump(calc_md5, 16, "");
+	hexdump(calc_md5, 16, "\n");
 
 	if (memcmp(md5, calc_md5, 16)) {
 		ErrorsFound++;
