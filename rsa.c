@@ -28,9 +28,13 @@ void generate_keys(private_key* ku, public_key* kp)
 {
     char buf[BUFFER_SIZE];
     int i;
-    mpz_t phi; mpz_init(phi);
-    mpz_t tmp1; mpz_init(tmp1);
-    mpz_t tmp2; mpz_init(tmp2);
+    mpz_t phi;
+    mpz_t tmp1;
+    mpz_t tmp2;
+
+    mpz_init(phi);
+    mpz_init(tmp1);
+    mpz_init(tmp2);
 
     srand(time(NULL));
 
@@ -124,13 +128,17 @@ int encrypt(char *cipher, const char *message, int length, public_key kp)
     int block_count = 0;
     int prog = length;
     char mess_block[BLOCK_SIZE];
-    mpz_t m; mpz_init(m);
-    mpz_t c; mpz_init(c);
+    mpz_t m;
+    mpz_t c;
+
+    mpz_init(m);
+    mpz_init(c);
 
     while(prog > 0)
     {
         int i = 0;
         int d_len = (prog >= (BLOCK_SIZE - 11)) ? BLOCK_SIZE - 11 : prog;
+	int off;
 
         /* Construct the header */
         mess_block[i++] = 0x00;
@@ -150,7 +158,7 @@ int encrypt(char *cipher, const char *message, int length, public_key kp)
         // Calculate cipher write offset to take into account that we want to
         // pad with zeros in the front if the number we get back has fewer bits
         // than BLOCK_SIZE
-        int off = block_count * BLOCK_SIZE;         // Base offset to start of this block
+        off = block_count * BLOCK_SIZE;         // Base offset to start of this block
         off += (BLOCK_SIZE - (mpz_sizeinbase(c, 2) + 8 - 1)/8); // See manual for mpz_export
 
         // Pull out bytestream of ciphertext
@@ -172,13 +180,19 @@ int decrypt(char* message, const char* cipher, int length, private_key ku)
 {
     int msg_idx = 0;
     char buf[BLOCK_SIZE];
-    mpz_t c; mpz_init(c);
-    mpz_t m; mpz_init(m);
+    int i;
+    mpz_t c;
+    mpz_t m;
+
+    mpz_init(c);
+    mpz_init(m);
     memset(buf,0,BLOCK_SIZE);
 
-    int i;
     for(i = 0; i < (length / BLOCK_SIZE); i++)
     {
+	int off;
+        int j;
+
         // Pull block into mpz_t
         mpz_import(c, BLOCK_SIZE, 1, sizeof(char), 0, 0, cipher + i * BLOCK_SIZE);
         // Decrypt block
@@ -187,14 +201,13 @@ int decrypt(char* message, const char* cipher, int length, private_key ku)
         // Calculate message write offset to take into account that we want to
         // pad with zeros in the front if the number we get back has fewer bits
         // than BLOCK_SIZE
-        int off = (BLOCK_SIZE - (mpz_sizeinbase(m, 2) + 8 - 1)/8); // See manual for mpz_export
+        off = (BLOCK_SIZE - (mpz_sizeinbase(m, 2) + 8 - 1)/8); // See manual for mpz_export
         // Convert back to bitstream
         mpz_export(buf + off, NULL, 1, sizeof(char), 0, 0, m);
 
         // Now we just need to lop off top padding before memcpy-ing to message
         // We know the first 2 bytes are 0x00 and 0x02, so manually skip those
         // After that, increment forward till we see a zero byte
-        int j;
         for(j = 2; ((buf[j] != 0) && (j < BLOCK_SIZE)); j++);
         j++;        // Skip the 00 byte
 
