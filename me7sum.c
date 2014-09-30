@@ -1013,6 +1013,7 @@ static int RSASign(struct ImageHandle *ih)
 	mpz_t M, C;
 	MD5_CTX ctx;
 	int i;
+	int ret;
 
 	// Initialize public key
 	mpz_init(kp.n);
@@ -1025,7 +1026,8 @@ static int RSASign(struct ImageHandle *ih)
 	mpz_init(ku.q);
 
 	/* assumes exp 3 */
-	generate_keys(&ku, &kp);
+	ret=generate_keys(&ku, &kp);
+	if (ret) goto out;
 
 	if (Verbose>1) {
 		printf("\n");
@@ -1086,6 +1088,7 @@ static int RSASign(struct ImageHandle *ih)
 	mpz_clear(C);
 	mpz_clear(M);
 
+out:
 	mpz_clear(kp.n);
 	mpz_clear(kp.e);
 	mpz_clear(ku.n);
@@ -1094,7 +1097,7 @@ static int RSASign(struct ImageHandle *ih)
 	mpz_clear(ku.p);
 	mpz_clear(ku.q);
 
-	return 0;
+	return ret;
 }
 
 static int DoRSA(struct ImageHandle *ih)

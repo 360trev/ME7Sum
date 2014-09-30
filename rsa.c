@@ -23,26 +23,16 @@
 #define BLOCK_SIZE (MODULUS_SIZE/8)         /* This is the size of a block that gets en/decrypted at once */
 #define BUFFER_SIZE ((MODULUS_SIZE/8) / 2)  /* This is the number of bytes in n and p */
 
-/* NOTE: Assumes mpz_t's are initted in ku and kp */
-void generate_keys(private_key* ku, public_key* kp)
+static void generate_primes(private_key *ku)
 {
     char buf[BUFFER_SIZE];
     int i;
-    mpz_t phi;
+
     mpz_t tmp1;
     mpz_t tmp2;
 
-    mpz_init(phi);
     mpz_init(tmp1);
     mpz_init(tmp2);
-
-    srand(time(NULL));
-
-    /* Insetead of selecting e st. gcd(phi, e) = 1; 1 < e < phi, lets choose e
-     * first then pick p,q st. gcd(e, p-1) = gcd(e, q-1) = 1 */
-    // We'll set e globally.  I've seen suggestions to use primes like 3, 17 or
-    // 65537, as they make coming calculations faster.  Lets use 3.
-    mpz_set_ui(ku->e, 3);
 
     /* Select p and q */
     /* Start with p */
@@ -85,6 +75,31 @@ void generate_keys(private_key* ku, public_key* kp)
         }
     } while(mpz_cmp(ku->p, ku->q) == 0); /* If we have identical primes (unlikely), try again */
 
+    mpz_clear(tmp1);
+    mpz_clear(tmp2);
+}
+
+/* NOTE: Assumes mpz_t's are initted in ku and kp */
+int generate_keys(private_key* ku, public_key* kp)
+{
+    mpz_t phi;
+    mpz_t tmp1;
+    mpz_t tmp2;
+
+    mpz_init(phi);
+    mpz_init(tmp1);
+    mpz_init(tmp2);
+
+    srand(time(NULL));
+
+    /* Insetead of selecting e st. gcd(phi, e) = 1; 1 < e < phi, lets choose e
+     * first then pick p,q st. gcd(e, p-1) = gcd(e, q-1) = 1 */
+    // We'll set e globally.  I've seen suggestions to use primes like 3, 17 or
+    // 65537, as they make coming calculations faster.  Lets use 3.
+    mpz_set_ui(ku->e, 3);
+
+    generate_primes(ku);
+
     /* Calculate n = p x q */
     mpz_mul(ku->n, ku->p, ku->q);
 
@@ -93,23 +108,26 @@ void generate_keys(private_key* ku, public_key* kp)
     mpz_sub_ui(tmp2, ku->q, 1);
     mpz_mul(phi, tmp1, tmp2);
 
+    mpz_clear(tmp1);
+    mpz_clear(tmp2);
+
     /* Calculate d (multiplicative inverse of e mod phi) */
     if(mpz_invert(ku->d, ku->e, phi) == 0)
     {
-        mpz_gcd(tmp1, ku->e, phi);
-        printf("gcd(e, phi) = [%s]\n", mpz_get_str(NULL, 16, tmp1));
-        printf("Invert failed\n");
+	mpz_gcd(tmp1, ku->e, phi);
+	printf("gcd(e, phi) = [%s]\n", mpz_get_str(NULL, 16, tmp1));
+	printf("Invert failed\n");
+	mpz_clear(phi);
+	return -1;
     }
+
+    mpz_clear(phi);
 
     /* Set public key */
     mpz_set(kp->e, ku->e);
     mpz_set(kp->n, ku->n);
 
-    mpz_clear(phi);
-    mpz_clear(tmp1);
-    mpz_clear(tmp2);
-
-    return;
+    return 0;
 }
 
 void block_encrypt(mpz_t C, mpz_t M, public_key kp)

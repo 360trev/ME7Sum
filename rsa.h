@@ -17,7 +17,7 @@ typedef struct {
     mpz_t q; /* Starting prime q */
 } private_key;
 
-extern void generate_keys(private_key* ku, public_key* kp);
+extern int generate_keys(private_key* ku, public_key* kp);
 extern void block_encrypt(mpz_t C, mpz_t M, public_key kp);
 extern int encrypt(char* cipher, const char *message, int length, public_key kp);
 extern void block_decrypt(mpz_t M, mpz_t C, private_key ku);
