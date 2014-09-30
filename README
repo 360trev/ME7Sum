@@ -40,6 +40,17 @@ it will not output a file!
 
 KNOWN ISSUES:
 -------------
+** RSA signature support is experimental, and may have bugs! **
+
+ME7Check may fail on RSA corrected bins. This may or may not be a good sign,
+and is still under testing.
+
+WinOLS should NOT correct any checksums in an RSA corrected bin. If it does,
+please email the binary to me or post on Nefmoto.
+
+DO NOT FLASH ANY BINS without a backup ECU or a way to restore a known good
+bin or you may be stranded!
+
 It should generally autodetect checksum/CRC blocks, but is known not to work
 on non VAG Motronic bins, eg:
 

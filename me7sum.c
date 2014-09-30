@@ -1,4 +1,4 @@
-/* me7sum [ firmware management tool for Bosch ME7.x firmware]
+/* me7sum [firmware management tool for Bosch ME7.x firmware]
    By 360trev and nyet
 
    Inspired by work from Andy Whittaker's (tools and information)
@@ -280,7 +280,7 @@ int main(int argc, char **argv)
 	// information about the tool
 	printf("ME7Tool (%s) [Management tool for Bosch ME7.x firmwares]\n",
 		__GIT_VERSION);
-	printf("Inspiration from Andy Whittaker's tools and information\n");
+	printf("Inspiration from Andy Whittaker's tools and information.\n");
 	printf("Written by 360trev and nyet [BSD License Open Source].\n");
 
 	opterr=0;
