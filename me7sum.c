@@ -1274,7 +1274,7 @@ static int DoROMSYS_Startup(struct ImageHandle *ih, const struct ROMSYSDescripto
 	nCalcStartupSum = le16toh(*r16[0])+le16toh(*r16[1]);
 
 	printf(" Startup section: word[0x00008000]+word[0x0000FFFE]\n");
-	printf(" @%x Add=0x%08X CalcAdd=0x%08X",
+	printf(" @%06x Add=0x%06X CalcAdd=0x%06X",
 		Config.romsys + (int)offsetof(struct ROMSYSDescriptor, startup_sum),
 		nCalcStartupSum, desc->startup_sum);
 
@@ -1335,7 +1335,7 @@ static int DoROMSYS_ProgramPages(struct ImageHandle *ih, const struct ROMSYSDesc
 	r.start=0x20000; r.end=ih->len-1;
 	nCalcProgramPagesSum+=ProgramPageSum(ih, &r);
 
-	printf(" @%x Add=0x%08X CalcAdd=0x%08X",
+	printf(" @%06x Add=0x%06X CalcAdd=0x%06X",
 		Config.romsys + (int)offsetof(struct ROMSYSDescriptor, program_pages_csum),
 		nCalcProgramPagesSum, desc->program_pages_csum);
 
@@ -1388,7 +1388,7 @@ static int DoROMSYS_ParamPage(struct ImageHandle *ih, struct ROMSYSDescriptor *d
 
 	printf(" All param page: word[0x%08X]+word[0x%08X]\n",
 		desc->all_param.start, desc->all_param.end);
-	printf(" @%x Add=0x%04X CalcAdd=0x%04X",
+	printf(" @%06x Add=0x%06X CalcAdd=0x%06X",
 		desc->all_param_sum_p-Config.base_address,
 		nAllParamSum, nCalcAllParamSum);
 
