@@ -1053,7 +1053,6 @@ static int RSASign(struct ImageHandle *ih)
 	for(i=0;i<MD5_MAX_BLKS;i++) {
 		int len=Config.rsa.md5[i].end-Config.rsa.md5[i].start+1;
 		if (len>0) {
-			printf(" %d) Adr: 0x%08X-0x%08X\n", i+1, Config.rsa.md5[i].start, Config.rsa.md5[i].end);
 			MD5_Update(&ctx, ih->d.u8+Config.rsa.md5[i].start, len);
 		}
 	}
