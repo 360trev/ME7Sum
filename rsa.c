@@ -56,7 +56,7 @@ static void generate_primes(private_key *ku)
     /* Make sure this is a good choice*/
     /* If p mod e == 1, gcd(phi, e) != 1 */
     mpz_mod(tmp, ku->p, ku->e);
-    while(!mpz_cmp_ui(tmp, 1) && mpz_sizeinbase(tmp, 2)<MODULUS_SIZE/2)
+    while(!mpz_cmp_ui(tmp, 1))
     {
 	/* Nope. Choose the next prime */
         mpz_nextprime(ku->p, ku->p);
@@ -69,7 +69,7 @@ static void generate_primes(private_key *ku)
 	/* Make sure this is a good choice*/
 	/* If p mod e == 1, gcd(phi, e) != 1 */
         mpz_mod(tmp, ku->q, ku->e);
-	while(!mpz_cmp_ui(tmp, 1) && mpz_sizeinbase(tmp, 2)<MODULUS_SIZE/2)
+	while(!mpz_cmp_ui(tmp, 1))
         {
 	    /* Nope. Choose the next prime */
             mpz_nextprime(ku->q, ku->q);
@@ -260,6 +260,8 @@ int main()
     private_key ku;
     public_key kp;
 
+    char buf[BLOCK_SIZE];
+
     mpz_init(M);
     mpz_init(C);
     mpz_init(DC);
@@ -286,11 +288,10 @@ int main()
     printf("ku.p is [%s]\n", mpz_get_str(NULL, 16, ku.p));
     printf("ku.q is [%s]\n", mpz_get_str(NULL, 16, ku.q));
 
-    char buf[6*BLOCK_SIZE];
-    for(i = 0; i < 6*BLOCK_SIZE; i++)
+    for(i = 0; i < BLOCK_SIZE; i++)
         buf[i] = rand() % 0xFF;
 
-    mpz_import(M, (6*BLOCK_SIZE), 1, sizeof(buf[0]), 0, 0, buf);
+    mpz_import(M, (BLOCK_SIZE), 1, sizeof(buf[0]), 0, 0, buf);
     printf("original is [%s]\n", mpz_get_str(NULL, 16, M));
     block_encrypt(C, M, kp);
     printf("encrypted is [%s]\n", mpz_get_str(NULL, 16, C));
