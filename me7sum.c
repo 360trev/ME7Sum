@@ -841,9 +841,9 @@ static int NormalizeRange(const struct ImageHandle *ih, struct Range *r)
 	if (r->start==0xffffffff && r->end==0xffffffff) return 0;
 
 	// We are only reading the ROM. Therefore the start address must be
-	// higher than ROMSTART. Ignore addresses lower than this and
+	// after Config.base_address. Ignore addresses lower than this and
 	// remove the offset for addresses we're interested in.
-	if (r->start < Config.base_address || r->end < Config.base_address)	//ROMSTART)
+	if (r->start < Config.base_address || r->end < Config.base_address)
 	{
 		// The checksum block is outside our range
 		printf(" ERROR: INVALID STARTADDDR/ENDADDR 0x%x/0x%x is less than base address 0x%x\n",
@@ -851,8 +851,8 @@ static int NormalizeRange(const struct ImageHandle *ih, struct Range *r)
 		return -1;
 	}
 
-	r->start -= Config.base_address;		//ROMSTART;
-	r->end   -= Config.base_address;		//ROMSTART;
+	r->start -= Config.base_address;
+	r->end   -= Config.base_address;
 
 	if(r->start>r->end)
 	{
@@ -1023,6 +1023,12 @@ static int mpz_export_buf(uint8_t *buf, int len, mpz_t x)
 
 static int rsa_block_pad(uint8_t *blk, const uint8_t *data, int len)
 {
+	if (len+3>RSA_BLOCK_SIZE) {
+		if (Verbose)
+			printf("Data too long %d+3>%d\n", len, RSA_BLOCK_SIZE);
+		return -1;
+	}
+
 	blk[0]=0;
 	blk[1]=1;
 	memset(blk+2, 0xff, RSA_BLOCK_SIZE-2-len-1);
