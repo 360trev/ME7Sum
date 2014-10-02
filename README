@@ -20,14 +20,11 @@ To check image.bin:
 
 To override detected checksum/CRC blocks, and/or display dump information:
 
-  me7sum [-i image.ini] image.bin
+  me7sum image.bin
 
-To output corrected checksums (the "-i" option is still available, but optional)
+To output corrected checksums:
 
-  me7sum [-i image.ini] image.bin out.bin
-
-** If in doubt, omit the -i option. You shouldn't use it unless you know what
-you are doing. **
+  me7sum image.bin out.bin
 
 Note that if me7sum cannot completely detect checksum/CRC locations correctly,
 it will not output a file!
@@ -42,11 +39,8 @@ KNOWN ISSUES:
 -------------
 ** RSA signature support is experimental, and may have bugs! **
 
-ME7Check may fail on RSA corrected bins. This may or may not be a good sign,
-and is still under testing.
-
-WinOLS should NOT correct any checksums in an RSA corrected bin. If it does,
-please email the binary to me or post on Nefmoto.
+ME7Check should not fail on RSA corrected bins. If it does, please email the
+binary to me or post on Nefmoto.
 
 DO NOT FLASH ANY BINS without a backup ECU or a way to restore a known good
 bin or you may be stranded!
@@ -58,15 +52,11 @@ ferrari360.bin
 
 ME7.5 is also currently unsupported but might work.
 
-For testing, regions can be overridden in an ini file. See sample.ini for
-available block/image options, and ferrari360.ini for an example of using
-the info and dump sections.
-
 BUILDING:
 ---------
 Under unix or cygwin, "make" should work.
 
-Under Windows MSVSS/nmake , type "build clean" then "build"
+Under Windows MSVSS/nmake, type "build clean" then "build"
 
 CONTRIBUTING:
 -------------
