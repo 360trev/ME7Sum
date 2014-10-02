@@ -1209,8 +1209,10 @@ static int DoRSA(struct ImageHandle *ih)
 		printf("signature:\n");
 		hexdump(ih->d.u8+Config.rsa.s, 128, "\n");
 	}
+
 	memset(buf, 0, sizeof(buf));
 	memset(dbuf, 0, sizeof(dbuf));
+
 	mpz_export_buf(buf, sizeof(buf), C);
 	mpz_export_buf(dbuf, sizeof(dbuf), DC);
 
@@ -1221,25 +1223,15 @@ static int DoRSA(struct ImageHandle *ih)
 	mpz_clear(C);
 	mpz_clear(DC);
 
-	rsa_block_unpad(md5, 16, buf);
-
-	if (Verbose) {
-		printf("sig->MD5: ");
-		hexdump(md5, 16, "\n");
-		if (Verbose>1) {
-			printf("padded:\n");
-			hexdump(buf, 128, "\n");
-		}
-	}
-
-	rsa_block_unpad(dmd5, 16, dbuf);
-
-	if (Verbose>2) {
-		printf("defsig->MD5: ");
-		hexdump(dmd5, 16, "\n");
-		printf("padded:\n");
+	if (Verbose>1) {
+		printf("sig->padded MD5:\n");
+		hexdump(buf, 128, "\n");
+		printf("defsig->padded MD5:\n");
 		hexdump(dbuf, 128, "\n");
 	}
+
+	rsa_block_unpad(md5, 16, buf);
+	rsa_block_unpad(dmd5, 16, dbuf);
 
 	ChecksumsFound ++;
 
