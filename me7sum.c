@@ -1005,17 +1005,18 @@ static int FindMD5Ranges(struct ImageHandle *ih)
 
 static int mpz_export_buf(uint8_t *buf, int len, mpz_t x)
 {
-	int size = (mpz_sizeinbase(x, 2)+7)/8;
+	size_t size = (mpz_sizeinbase(x, 256));
 	int off = len-size;
 
 	if (size>len) {
-		printf("size %d>len %d\n", size, len);
+		printf("size %d>len %d\n", (int)size, len);
 		return -1;
 	}
 
+	/* pad with zeros */
 	if (off>0) memset(buf, 0, off);
 
-	mpz_export(buf+off, NULL, 1, 1, 0, 0, x);
+	mpz_export(buf+off, &size, 1, 1, 0, 0, x);
 
 	return size;
 }
