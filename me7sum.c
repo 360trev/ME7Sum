@@ -567,7 +567,7 @@ int main(int argc, char **argv)
 
 	//
 	// All done!
-    //
+	//
 	printf("\n*** Found %d checksums in %s\n", ChecksumsFound, input);
 
 	if(ErrorsUncorrectable)
