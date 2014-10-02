@@ -18,10 +18,6 @@ To check image.bin:
   ME7Check image.bin
   me7sum image.bin
 
-To override detected checksum/CRC blocks, and/or display dump information:
-
-  me7sum image.bin
-
 To output corrected checksums:
 
   me7sum image.bin out.bin
