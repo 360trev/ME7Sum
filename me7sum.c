@@ -1015,8 +1015,10 @@ static int FindPN(const struct ImageHandle *ih)
 	len=strnlen(ih->d.s+off[0], 80);
 	if(len<80) {
 		char buf[80];
-		char *argv[6]={};
+		char *argv[6];
 		int argc;
+
+		memset(argv, 0, sizeof(argv));
 
 		snprintf(buf, sizeof(buf), "%s", ih->d.s+off[0]);
 

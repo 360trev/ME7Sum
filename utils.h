@@ -26,6 +26,13 @@
 #include <string.h>
 #include <stdint.h>
 #include <limits.h>
+
+#ifdef _WIN32
+#include <windows.h>
+#define PATH_MAX MAX_PATH
+#define snprintf _snprintf
+#endif
+
 #include "str.h"
 
 enum Padding {
