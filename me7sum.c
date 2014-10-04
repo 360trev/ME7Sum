@@ -1058,11 +1058,38 @@ static int FindPN(const struct ImageHandle *ih)
 	return 0;
 }
 
+static int FindSSECU(const struct ImageHandle *ih, const void *n,
+	InfoItem *ii)
+{
+	const uint8_t m[]={0xff, 0xff, 0xff, 0xff};
+	int offset, found=0, i=0;
+
+	for(i=0;i+4<ih->len;i++)
+	{
+		i=search_image(ih, i, n, m, 4, 1);
+		if (i<0) break;
+		if (i+4<ih->len)
+		{
+			offset=i;
+			found++;
+		}
+	}
+
+	if(found==1) {
+		ii->off=offset;
+		ii->len=9;
+	}
+
+	return 0;
+}
+
 static int FindRomInfo(const struct ImageHandle *ih)
 {
 	int ret=0;
 	ret+=FindEPK(ih);
 	ret+=FindPN(ih);
+	ret+=FindSSECU(ih, "0261", &InfoConfig.hw_number);
+	ret+=FindSSECU(ih, "1037", &InfoConfig.sw_number);
 	return ret;
 }
 
