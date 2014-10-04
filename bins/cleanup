@@ -1,9 +1,10 @@
 #!/bin/bash
 for i in $*; do
-    box=$( strings $i | grep 551 | head -1 | cut -f 1 -d ' ')
+    box=$( ../me7sum -e $i | grep "Part Number" | cut -f 2 -d \')
     ver=$( strings $i | grep 0261 | sed -e 's/1037/-/' )
 
     [ -z "$box" ] && exit
+    [ -z "$ver" ] && exit
 
     outl=$box-$ver.bin
     out=$box.bin
