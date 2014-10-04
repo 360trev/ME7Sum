@@ -198,7 +198,7 @@ static int DoChecksumBlk(struct ImageHandle *ih, uint32_t nStartBlk, struct strb
 static void usage(const char *prog)
 {
 	printf("Usage: %s [-v] [-i <config.ini>] <inrom.bin> [outrom.bin]\n", prog);
-	printf("       %s [-v] [-i <config.ini>] -e <inrom.bin>\n", prog);
+	printf("       %s [-v] [-i <config.ini>] -s <inrom.bin>\n", prog);
 	exit(-1);
 }
 
@@ -269,7 +269,7 @@ int main(int argc, char **argv)
 {
 	int Step=0;
 	int	iTemp;
-	int ecuinfo_only=0;
+	int summary=0;
 	char *prog=argv[0];
 	char *inifile=NULL;
 	char *input=NULL;
@@ -289,15 +289,15 @@ int main(int argc, char **argv)
 
 	opterr=0;
 
-	while ((c = getopt(argc, argv, "eqvi:")) != -1)
+	while ((c = getopt(argc, argv, "qsvi:")) != -1)
 	{
 		switch (c)
 		{
-			case 'e':
-				ecuinfo_only++;
-				break;
 			case 'q':
 				Verbose--;
+				break;
+			case 's':
+				summary++;
 				break;
 			case 'v':
 				Verbose++;
@@ -332,8 +332,8 @@ int main(int argc, char **argv)
 	else
 		Config.readonly=1;
 
-	if (ecuinfo_only && output) {
-		fprintf(stderr, "-e cannot be used with output file\n");
+	if (summary && output) {
+		fprintf(stderr, "-s cannot be used with output file\n");
 		usage(prog);
 		return -1;
 	}
@@ -421,7 +421,7 @@ int main(int argc, char **argv)
 		ErrorsUncorrectable++;
 	}
 
-	if(ecuinfo_only>0) goto out;
+	if(summary>0) goto out;
 
 	DEBUG_EXIT_ROM;
 
