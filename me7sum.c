@@ -930,11 +930,11 @@ static int FindEPK(const struct ImageHandle *ih)
 			if (Verbose) {
 				printf("%s: found EPK sig 0x%x\n", ih->filename, i);
 				if (Verbose>1) {
-					hexdump(ih->d.u8+i, 8, "\n\n");
-					hexdump(ih->d.u8+i+8, 0x40, "\n");
+					hexdump(ih->d.u8+i, 6, "\n\n");
+					hexdump(ih->d.u8+i+6, 0x40, "\n");
 				}
 			}
-			off=i+8;
+			off=i+6;
 			ret=0;
 		} else {
 			off=0;
@@ -948,7 +948,7 @@ static int FindEPK(const struct ImageHandle *ih)
 
 	start = ih->d.s+off+1;
 
-	while (!isprint((int)*start) || *start==0x0a) start++;
+	if(start[1]==0x0a) start+=2;
 
 	for(len=0;len<0x40;len++) {
 		if (start[len]=='/' && start[len+1]==(char)0xff) break;
