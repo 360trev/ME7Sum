@@ -332,6 +332,12 @@ int main(int argc, char **argv)
 	else
 		Config.readonly=1;
 
+	if (ecuinfo_only && output) {
+		fprintf(stderr, "-e cannot be used with output file\n");
+		usage(prog);
+		return -1;
+	}
+
 	if (inifile)
 	{
 		printf("Attempting to open firmware config file '%s'\n",inifile);
