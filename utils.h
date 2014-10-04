@@ -25,6 +25,7 @@
 
 #include <string.h>
 #include <stdint.h>
+#include <limits.h>
 #include "str.h"
 
 enum Padding {
@@ -46,6 +47,7 @@ struct ImageHandle {
 	size_t	len;
 	enum	Padding pad;
 	int	bootrom_whitelist;
+	char	filename[PATH_MAX];
 };
 
 /*
@@ -94,6 +96,6 @@ uint8_t *load_file(const char *filename, size_t *filelen, struct strbuf *buf);
 
 int search_image(const struct ImageHandle *ih, size_t start, const void *needle, const void *mask, int len, int align);
 
-void hexdump(uint8_t *buf, int len, const char *end);
+void hexdump(const uint8_t *buf, int len, const char *end);
 
 #endif

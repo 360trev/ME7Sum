@@ -109,11 +109,11 @@ struct rom_config {
 
 struct info_config {
 	InfoItem	EPK;
-	InfoItem	part_number;
-	InfoItem	engine_id;
-	InfoItem	sw_version;
-	InfoItem	hw_number;
 	InfoItem	sw_number;
+	InfoItem	hw_number;
+	InfoItem	part_number;
+	InfoItem	sw_version;
+	InfoItem	engine_id;
 };
 
 // globals
@@ -170,8 +170,9 @@ static InfoListItem romInfo[] = {
 	{ NULL,END_LIST,NULL,NULL,NULL}
 };
 
-static int GetRomDump(const struct ImageHandle *ih, struct section *osconfig);
-static int GetRomInfo(const struct ImageHandle *ih, struct section *osconfig);
+
+static int FindRomInfo(const struct ImageHandle *ih);
+static int DoRomInfo(const struct ImageHandle *ih, struct section *osconfig);
 
 static int FindROMSYS(struct ImageHandle *ih);
 static int DoROMSYS(struct ImageHandle *ih);
@@ -389,13 +390,31 @@ int main(int argc, char **argv)
 		}
 	}
 
-	GetRomInfo(&ih, osconfig);
-	GetRomDump(&ih, osconfig);
+	//
+	// ROM info
+	//
+
+	printf("\nStep #%d: Reading ROM info ..\n", ++Step);
+	if(InfoConfig.EPK.off==0)
+	{
+		FindRomInfo(&ih);
+	}
+
+	if(InfoConfig.EPK.off && InfoConfig.part_number.off)
+	{
+		DoRomInfo(&ih, osconfig);
+	}
+	else
+	{
+		printf("Step #%d: ERROR! Skipping ROM info.. UNDEFINED\n", Step);
+		ErrorsUncorrectable++;
+	}
+
 
 	DEBUG_EXIT_ROM;
 
 	//
-	// Step #1 ROMSYS
+	// ROMSYS
 	//
 	printf("\nStep #%d: Reading ROMSYS ..\n", ++Step);
 
@@ -418,7 +437,7 @@ int main(int argc, char **argv)
 
 
 	//
-	// Step #2 RSA
+	// RSA
 	//
 	printf("\nStep #%d: Reading RSA signatures ..\n", ++Step);
 
@@ -436,7 +455,7 @@ int main(int argc, char **argv)
 
 
 	//
-	// Step #3 Main data checksums if specified
+	// Main data checksums if specified
 	//
 	printf("\nStep #%d: Reading Main Data Checksums ..\n", ++Step);
 
@@ -484,7 +503,7 @@ int main(int argc, char **argv)
 
 
 	//
-	// Step #4 Main program checksums
+	// Main program checksums
 	//
 	printf("\nStep #%d: Reading Main Program Checksums ..\n", ++Step);
 	if(Config.main_checksum_offset==0)
@@ -511,7 +530,7 @@ int main(int argc, char **argv)
 
 
 	//
-	// Step #5 Multi point checksums
+	// Multi point checksums
 	//
 	printf("\nStep #%d: Reading Multipoint Checksum Blocks ..\n", ++Step);
 
@@ -636,8 +655,6 @@ static int GetRomInfo(const struct ImageHandle *ih, struct section *osconfig)
 
 	if (!max_len) { return -1; }
 
-	printf("\nROM Info:\n");
-
 	for(info=romInfo; info->attr_type!=END_LIST; info++)
 	{
 		char *str_data;
@@ -661,12 +678,14 @@ static int GetRomInfo(const struct ImageHandle *ih, struct section *osconfig)
 	return 0;
 }
 
-static int GetRomDump(const struct ImageHandle *ih, struct section *osconfig)
+static int DoRomInfo(const struct ImageHandle *ih, struct section *osconfig)
 {
 	uint32_t num_of;
 	int i, max_len=0;
 
 	if(ih == NULL) return(-1);
+
+	GetRomInfo(ih, osconfig);
 
 	if ((num_of = get_property_value(osconfig, "dumps", "dump_show", NULL))<=0)
 	{
@@ -872,6 +891,179 @@ static int NormalizeRange(const struct ImageHandle *ih, struct Range *r)
 }
 
 /* Actual work */
+static int FindEPK(const struct ImageHandle *ih)
+{
+	static const uint8_t n[]={0x43, 0xF8, 0x00, 0x00, 0x9d, 0x07, 0x09, 0x81};
+	static const uint8_t m[]={0xf3, 0xff, 0x00, 0x00, 0xff, 0xff, 0xff, 0xff};
+	int i, off=0, found=0;
+	int max = 0x30000;
+	const char *start;
+	int len=0;
+	int ret=-1;
+
+	printf(" Searching for EPK signature...");
+
+	for(i=0;i<max;i+=2)
+	{
+		i=search_image(ih, i, n, m, sizeof(n), 2);
+		if(i<0 || i>=max) break;
+		off = le16toh(ih->d.u16[i/2+1]);
+		off |= 0x10000;
+		if (Verbose) {
+			printf("%s: possible EPK @0x%x 0x%x\n", ih->filename, i, off);
+			if (Verbose>1) {
+				hexdump(ih->d.u8+i-4, 4, "[");
+				hexdump(ih->d.u8+i, sizeof(n), "]");
+				hexdump(ih->d.u8+i+sizeof(n), 4,  "\n\n");
+				hexdump(ih->d.u8+off, 0x40, "\n");
+			}
+		}
+		found++;
+	}
+
+	if (found==1) {
+		ret=0;
+	} else {
+		static const char sig[]={0xc3, 0x3c, 0x5a, 0x5a, 0xff, 0xff};
+		i=0x10000-2;
+		if (memcmp(ih->d.u8+i, sig, sizeof(sig))==0) {
+			if (Verbose) {
+				printf("%s: found EPK sig 0x%x\n", ih->filename, i);
+				if (Verbose>1) {
+					hexdump(ih->d.u8+i, 8, "\n\n");
+					hexdump(ih->d.u8+i+8, 0x40, "\n");
+				}
+			}
+			off=i+8;
+			ret=0;
+		} else {
+			off=0;
+		}
+	}
+
+	if (ret) {
+		printf("missing\n");
+		return ret;
+	}
+
+	start = ih->d.s+off+1;
+
+	while (!isprint((int)*start) || *start==0x0a) start++;
+
+	for(len=0;len<0x40;len++) {
+		if (start[len]=='/' && start[len+1]==(char)0xff) break;
+	}
+
+	if(len>=0x40) {
+		printf("missing\n");
+		return -1;
+	}
+
+	InfoConfig.EPK.off=start-(const char*)(ih->d.u8);
+	InfoConfig.EPK.len=len;
+
+	printf("OK\n");
+	return 0;
+}
+
+static int FindPN(const struct ImageHandle *ih)
+{
+	static const uint8_t n[]=	//         LL    LL
+	{0xF7, 0X8E, 0X00, 0X00, 0XE6, 0XF4, 0X00, 0X00, 0XF6, 0XF4, 0x00, 0x00, 0xE6, 0xF4};
+	static const uint8_t m[]=
+	{0xff, 0xff, 0x00, 0x00, 0xff, 0xf4, 0x00, 0x00, 0xff, 0xff, 0x00, 0x00, 0xE6, 0xF4};
+
+	int i, off[4]={0,0,0,0}, found=0;
+	int max = 0x40000;
+	int len;
+
+	printf(" Searching for P/N...");
+
+	for(i=0;i<max && found<4;i+=2)
+	{
+		int addr;
+		i=search_image(ih, i, n, m, sizeof(n), 2);
+		if(i<0 || i>=max) break;
+		addr = le16toh(ih->d.u16[i/2+3]);
+		addr |= 0x10000;
+		if (!isalnum((int)ih->d.s[addr+0]) ||
+			!isalnum((int)ih->d.s[addr+1]) ||
+			!isalnum((int)ih->d.s[addr+2]) ||
+			!isalnum((int)ih->d.s[addr+3])
+			)
+			continue;
+		if (Verbose) {
+			printf("%s: possible P/N #%d @0x%x 0x%x\n", ih->filename,
+				found+1, i, addr);
+			if (Verbose>1) {
+				hexdump(ih->d.u8+i-4, 4, "[");
+				hexdump(ih->d.u8+i, sizeof(n), "]");
+				hexdump(ih->d.u8+i+sizeof(n), 4,  "\n\n");
+				hexdump(ih->d.u8+addr, 0x40, "\n");
+			}
+		}
+		off[found++]=addr;
+	}
+
+	if(found!=1 && found !=2) {
+		if(Verbose>2)
+			printf("%s: found=%d\n", ih->filename, found);
+		printf("missing\n");
+		return -1;
+	}
+
+	len=strnlen(ih->d.s+off[0], 80);
+	if(len<80) {
+		char buf[80];
+		char *argv[6]={};
+		int argc;
+
+		snprintf(buf, sizeof(buf), "%s", ih->d.s+off[0]);
+
+		argc = str_split(buf, argv, 6, " ");
+
+		/* P/N, engine id1, engine id2, sw version */
+		if(argc>0) {
+			InfoConfig.part_number.off = off[0];
+			InfoConfig.part_number.len = strnlen(argv[0], 80);
+		}
+
+		if(argc>2) {
+			InfoConfig.engine_id.off = off[0]+(argv[1]-buf);
+			InfoConfig.engine_id.len = strnlen(argv[1], 80)
+				+ strnlen(argv[2], 80) + 1;
+		}
+
+		if (found==2) {
+			int first=InfoConfig.engine_id.off;
+			int last;
+			for(last=off[1]-1;last>first;last--) {
+				if (ih->d.s[last]!=' ') break;
+			}
+
+			InfoConfig.engine_id.len = last-first+1;
+			InfoConfig.sw_version.off = off[1];
+			InfoConfig.sw_version.len = 4;
+		} else {
+			if(argc>3) {
+				InfoConfig.sw_version.off = off[0]+(argv[3]-buf);
+				InfoConfig.sw_version.len = 4;
+			}
+		}
+	}
+
+	printf("OK\n");
+	return 0;
+}
+
+static int FindRomInfo(const struct ImageHandle *ih)
+{
+	int ret=0;
+	ret+=FindEPK(ih);
+	ret+=FindPN(ih);
+	return ret;
+}
+
 static int FindRSAOffsets(struct ImageHandle *ih)
 {
 	int s=0,n=0,e=0;
@@ -1058,7 +1250,7 @@ static int rsa_block_unpad(uint8_t *data, int len, const uint8_t *blk)
 		if (Verbose)
 			printf("no null term! %x [%x] %x\n",
 				blk[i-1], blk[i], blk[i+1]);
-			
+
 		return -1;
 	}
 	memcpy(data, blk+i+1, len);
@@ -1266,17 +1458,17 @@ static int DoRSA(struct ImageHandle *ih)
 		ErrorsFound++;
 		if (Config.readonly)
 		{
-			printf("  ** NOT OK **\n");
+			printf(" ** NOT OK **\n");
 			return -1;
 		}
 		else
 		{
 			if (RSASign(ih)) {
 				ErrorsUncorrectable++;
-				printf("  ** UNFIXABLE **\n");
+				printf(" ** UNFIXABLE **\n");
 			} else {
 				ErrorsCorrected++;
-				printf("  ** FIXED **\n");
+				printf(" ** FIXED **\n");
 			}
 		}
 	}
@@ -1318,7 +1510,7 @@ static int DoROMSYS_Startup(struct ImageHandle *ih, const struct ROMSYSDescripto
 	r16[1]=(uint16_t *)(ih->d.u8 + 0xFFFE);
 	nCalcStartupSum = le16toh(*r16[0])+le16toh(*r16[1]);
 
-	printf(" Startup section: word[0x00008000]+word[0x0000FFFE]\n");
+	printf(" Startup section: word[0x008000]+word[0x00FFFE]\n");
 	printf(" @%06x Add=0x%06X CalcAdd=0x%06X",
 		Config.romsys + (int)offsetof(struct ROMSYSDescriptor, startup_sum),
 		nCalcStartupSum, desc->startup_sum);
@@ -1330,7 +1522,7 @@ static int DoROMSYS_Startup(struct ImageHandle *ih, const struct ROMSYSDescripto
 		ErrorsFound++;
 		if (Config.readonly)
 		{
-			printf("  ** NOT OK **\n");
+			printf(" ** NOT OK **\n");
 			return -1;
 		}
 		else
@@ -1359,7 +1551,7 @@ static uint32_t ProgramPageSum(struct ImageHandle *ih, const struct Range *r)
 		p16[0]=(uint16_t *)(ih->d.u8+addr);			/* first word of page */
 		p16[1]=(uint16_t *)(ih->d.u8+addr+8*1024-2);	/* last word of page */
 		if (Verbose>1)
-			printf("      word[0x%08X]+word[0x%08X]\n",
+			printf("      word[0x%06X]+word[0x%06X]\n",
 				addr, addr+8*1024-2);
 		sum+=le16toh(*p16[0]) + le16toh(*p16[1]);
 	}
@@ -1391,7 +1583,7 @@ static int DoROMSYS_ProgramPages(struct ImageHandle *ih, const struct ROMSYSDesc
 		ErrorsFound++;
 		if (Config.readonly)
 		{
-			printf("  ** NOT OK **\n");
+			printf(" ** NOT OK **\n");
 			return -1;
 		}
 		else
@@ -1431,7 +1623,7 @@ static int DoROMSYS_ParamPage(struct ImageHandle *ih, struct ROMSYSDescriptor *d
 	r16[1]=(uint16_t *)(ih->d.u8 + desc->all_param.end);
 	nCalcAllParamSum = le16toh(*r16[0])+le16toh(*r16[1]);
 
-	printf(" All param page: word[0x%08X]+word[0x%08X]\n",
+	printf(" All param page: word[0x%06X]+word[0x%06X]\n",
 		desc->all_param.start, desc->all_param.end);
 	printf(" @%06x Add=0x%06X CalcAdd=0x%06X",
 		desc->all_param_sum_p-Config.base_address,
@@ -1444,7 +1636,7 @@ static int DoROMSYS_ParamPage(struct ImageHandle *ih, struct ROMSYSDescriptor *d
 		ErrorsFound++;
 		if (Config.readonly)
 		{
-			printf("  ** NOT OK **\n");
+			printf(" ** NOT OK **\n");
 			return -1;
 		}
 		else
@@ -1726,7 +1918,7 @@ static int DoMainCRCs(struct ImageHandle *ih)
 					ErrorsFound++;
 					if (Config.readonly)
 					{
-						printf("  ** NOT OK **\n");
+						printf(" ** NOT OK **\n");
 						result|=-1;
 					}
 					else
@@ -1738,7 +1930,7 @@ static int DoMainCRCs(struct ImageHandle *ih)
 				}
 				else
 				{
-					printf("  CRC OK\n");
+					printf(" CRC OK\n");
 				}
 			} else {
 				printf("                      CalcCRC: %08X%s\n", nCalcCRC, nCalcCRCSeed?"(r)":"   ");
@@ -1798,7 +1990,7 @@ static int DoMainCSMs(struct ImageHandle *ih)
 		ErrorsFound++;
 		if (Config.readonly)
 		{
-			printf("  ** NOT OK **\n");
+			printf(" ** NOT OK **\n");
 			result|=-1;
 		}
 		else
@@ -1814,7 +2006,7 @@ static int DoMainCSMs(struct ImageHandle *ih)
 		ErrorsFound++;
 		if (Config.readonly)
 		{
-			printf("  ** NOT OK **\n");
+			printf(" ** NOT OK **\n");
 			result|=-1;
 		}
 		else
@@ -1934,7 +2126,7 @@ static int DoMainChecksum(struct ImageHandle *ih, uint32_t nOffset, uint32_t nCs
 		//struct Range sr = {.start = 0x10000, .end = 0x1FFFF};
 	    ss = CalcChecksumBlk16(ih, &sr);
 		sc = crc32(0, ih->d.u8+sr.start, sr.end-sr.start+1);
-		printf("         0x%06X-0x%06X  SKIPPED CalcChk: 0x%08X CalcChk: 0x%08X\n",
+		printf("         0x%06X-0x%06X SKIPPED CalcChk: 0x%08X CalcCRC: 0x%08X\n",
 			sr.start, sr.end, ss, sc);
 	}
 
@@ -1948,10 +2140,10 @@ static int DoMainChecksum(struct ImageHandle *ih, uint32_t nOffset, uint32_t nCs
 	// copy from (le) buffer
 	memcpy_from_le32(&csum, ih->d.u8+nCsumAddr, sizeof(csum));
 
-	printf(" @%05x Chksum: 0x%08X", Config.main_checksum_final, csum.v);
+	printf(" @%05x Chk: 0x%08X", Config.main_checksum_final, csum.v);
 	if(csum.v != ~csum.iv)
 	{
-		printf(" ~Chksum: 0x%08X INV NOT OK", csum.iv);
+		printf(" ~Chk: 0x%08X INV NOT OK", csum.iv);
 		errors++;
 	}
 

@@ -30,6 +30,7 @@ int iload_file(struct ImageHandle *ih, const char *fname, int rw, struct strbuf 
 	memset(ih, 0, sizeof(*ih));
 	// load file into memory
 	if(((ih->d.p)= (void *)load_file(fname,&ih->len,buf)) == 0) return -1;
+	snprintf(ih->filename, sizeof(ih->filename), "%s", fname);
 	return 0;
 }
 
@@ -138,7 +139,7 @@ int search_image(const struct ImageHandle *ih, size_t start, const void *needle,
     return start;
 }
 
-void hexdump(uint8_t *buf, int len, const char *end)
+void hexdump(const uint8_t *buf, int len, const char *end)
 {
     int i=len;
     while(i--)
