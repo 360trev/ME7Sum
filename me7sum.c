@@ -950,8 +950,8 @@ static int FindEPK(const struct ImageHandle *ih)
 
 	if(start[1]==0x0a) start+=2;
 
-	for(len=0;len<0x40;len++) {
-		if (start[len]=='/' && start[len+1]==(char)0xff) break;
+	for(len=1;len<0x40;len++) {
+		if (start[len-1]=='/' && start[len]==(char)0xff) break;
 	}
 
 	if(len>=0x40) {
@@ -959,7 +959,7 @@ static int FindEPK(const struct ImageHandle *ih)
 		return -1;
 	}
 
-	InfoConfig.EPK.off=start-(const char*)(ih->d.u8);
+	InfoConfig.EPK.off=start-ih->d.s;
 	InfoConfig.EPK.len=len;
 
 	printf("OK\n");
