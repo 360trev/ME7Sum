@@ -198,6 +198,7 @@ static int DoChecksumBlk(struct ImageHandle *ih, uint32_t nStartBlk, struct strb
 static void usage(const char *prog)
 {
 	printf("Usage: %s [-v] [-i <config.ini>] <inrom.bin> [outrom.bin]\n", prog);
+	printf("       %s [-v] [-i <config.ini>] -e <inrom.bin>\n", prog);
 	exit(-1);
 }
 
@@ -268,6 +269,7 @@ int main(int argc, char **argv)
 {
 	int Step=0;
 	int	iTemp;
+	int ecuinfo_only=0;
 	char *prog=argv[0];
 	char *inifile=NULL;
 	char *input=NULL;
@@ -287,10 +289,13 @@ int main(int argc, char **argv)
 
 	opterr=0;
 
-	while ((c = getopt(argc, argv, "qvi:")) != -1)
+	while ((c = getopt(argc, argv, "eqvi:")) != -1)
 	{
 		switch (c)
 		{
+			case 'e':
+				ecuinfo_only++;
+				break;
 			case 'q':
 				Verbose--;
 				break;
@@ -410,6 +415,7 @@ int main(int argc, char **argv)
 		ErrorsUncorrectable++;
 	}
 
+	if(ecuinfo_only>0) goto out;
 
 	DEBUG_EXIT_ROM;
 
