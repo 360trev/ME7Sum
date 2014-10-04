@@ -146,3 +146,18 @@ void hexdump(const uint8_t *buf, int len, const char *end)
 	printf("%02x%s", *buf++, ((i&0xf)==0 && len>32)?"\n":i?" ":"");
     printf("%s", end);
 }
+
+#ifdef _WIN32
+int snprintf(char *str, size_t size, const char *format, ...)
+{
+    int count;
+    va_list ap;
+
+    va_start(ap, format);
+    count = _vsnprintf(str, size, format, ap);
+    va_end(ap);
+    str[size-1]='\0';
+
+    return count;
+}
+#endif
