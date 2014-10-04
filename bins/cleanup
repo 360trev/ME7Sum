@@ -1,11 +1,15 @@
 #!/bin/bash
 for i in $*; do
     box=$( ../me7sum -e $i | grep "Part Number" | cut -f 2 -d \')
-    ver=$( strings $i | grep 0261 | sed -e 's/1037/-/' | sed -e 's/ //g' )
+    ver=$( ../me7sum -e $i | grep "SW Version" | cut -f 2 -d \')
+    ssecu=$( ../me7sum -e $i | grep "SW Number" | sed -e 's/^1037//' | sed -e 's/ //g' )
 
-    [ -z "$box" ] && exit
-    [ -z "$ver" ] && exit
+    if [ -z "$box" -o -z "$ver" -o -z "$ssecu" ]; then
+	echo $i box=\"$box\" ver=\"$ver\" ssecu=\"$ssecu\" failed
+	continue
+    fi
 
+    outll=$box-$ver-$ssecu.bin
     outl=$box-$ver.bin
     out=$box.bin
 
@@ -16,8 +20,10 @@ for i in $*; do
 	    echo git mv $i $out
 	elif [ ! -f "outl" ]; then
 	    echo git mv $i $outl
+	elif [ ! -f "outll" ]; then
+	    echo git mv $i $outll
 	else
-	    echo failed
+	    echo $i $outll failed
 	fi
     fi
 done
