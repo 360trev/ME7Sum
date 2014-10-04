@@ -1083,7 +1083,7 @@ static int FindSSECU(const struct ImageHandle *ih, const void *n,
 
 	if(found==1) {
 		ii->off=offset;
-		ii->len=9;
+		ii->len=10;
 	}
 
 	return 0;
