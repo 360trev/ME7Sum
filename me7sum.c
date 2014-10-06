@@ -487,20 +487,23 @@ int main(int argc, char **argv)
 		FindMainCRCOffsets(&ih);	/* Detect if using CRC algo */
 	}
 
-	if(Config.crc[1].offset==0 && Config.csm_offset==0)
+	if(Config.csm_offset==0)
 	{
 		FindMainCSMOffsets(&ih);	/* Detect if using Checksum algo */
 	}
 
-	if(Config.crc[1].r.start && Config.crc[1].r.end && Config.crc[1].offset)
-	{
-		DoMainCRCs(&ih);
+	if(Config.crc[1].r.start && Config.crc[1].r.end) {
+		/* Note: both CRC and checksum are possible! */
+		if(Config.crc[1].offset)
+		{
+			DoMainCRCs(&ih);
+		}
+		if(Config.csm_offset)
+		{
+			DoMainCSMs(&ih);
+		}
 	}
-	else if (Config.crc[1].r.start && Config.crc[1].r.end && Config.csm_offset)
-	{
-		DoMainCSMs(&ih);
-	}
-	else
+	else if(Config.crc[1].offset || Config.csm_offset)
 	{
 		printf("\nStep #%d: ERROR! Skipping main data checksums ... UNDEFINED\n",
 			Step);
@@ -1898,19 +1901,26 @@ static int FindMainCSMOffsets(const struct ImageHandle *ih)
 {
 	int found;
 	uint32_t offset;
-	//                                            LL    LL                HH    HH
-	uint8_t needle[] = {0xE1, 0x0C, 0xE6, 0xF4, 0x00, 0x00, 0xE6, 0xF5, 0x80, 0x00, 0xDA, 0x00 /*, 0xf0, 0xe1, 0x0c, 0xe6 */};
-	uint8_t   mask[] = {0xff, 0xff, 0xff, 0xff, 0x00, 0x00, 0xff, 0xff, 0xf0, 0xff, 0xff, 0xff /*, 0xf0, 0xff, 0xff, 0xff */};
+	//                                             LL    LL                HH    HH
+	uint8_t needle0[] = {0xE1, 0x0C, 0xE6, 0xF4, 0x00, 0x00, 0xE6, 0xF5, 0x80, 0x00, 0xDA, 0x00 /*, 0xf0, 0xe1, 0x0c, 0xe6 */};
+	uint8_t needle1[] = {0x04, 0x00, 0xE6, 0xF4, 0x00, 0x00, 0xE6, 0xF5, 0x80, 0x00, 0xDA, 0x00 /*, 0xd8, 0x7e, 0xe6, 0x00 */};
+	uint8_t    mask[] = {0xff, 0xff, 0xff, 0xff, 0x00, 0x00, 0xff, 0xff, 0xf0, 0xff, 0xff, 0xff /*, 0xf0, 0xff, 0xff, 0xff */};
 
 	printf(" Searching for main data checksum offsets...");
 	DEBUG_FLUSH_CRC;
 
-	found=FindData(ih, "Checksum offset", needle, mask, sizeof(needle), 2, 4, &offset, 1, NULL);
+	found=FindData(ih, "Checksum offset", needle0, mask, sizeof(needle0), 2, 4, &offset, 1, NULL);
 
-	if (found!=1) {
+	if(found<1) {
+		/* try alternate pattern */
+		found=FindData(ih, "Checksum offset", needle1, mask, sizeof(needle1), 2, 4, &offset, 1, NULL);
+		if (found!=1) {
+			printf("missing\n");
+			return -1;
+		}
+	} else if (found>1) {
 		DEBUG_CRC("Did not find exactly 1 match (got %d). Checksum offset find failed\n", found);
-		Config.csm_offset=0;
-		printf("FAIL\n");
+		printf("missing\n");
 		return -1;
 	}
 
@@ -1926,6 +1936,7 @@ static int DoMainCRCs(struct ImageHandle *ih)
 	int i;
 	uint32_t nCalcCRCSeed = 0;
 
+	printf(" Main CRCs:\n");
 	for (i=0; i<5; i++)
 	{
 		if(Config.crc[i].r.start && Config.crc[i].r.end)
@@ -2008,6 +2019,8 @@ static int DoMainCSMs(struct ImageHandle *ih)
 	p32 =(uint32_t *)(ih->d.u8 + nCSMAddr);
 	nCSM = le32toh(p32[0]);
 	nCSMinv = le32toh(p32[1]);
+
+	printf(" Main Checksums:\n");
 
 	for (i=1; i<5; i++)
 	{
