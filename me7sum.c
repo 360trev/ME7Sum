@@ -818,7 +818,7 @@ static int FindData(const struct ImageHandle *ih, const char *what,
 			uint32_t addr=(high<<16) | low;
 
 			if (Verbose>1) {
-				printf("Found possible %s #%d at 0x%x (from 0x%x)\n",
+				printf(" Found possible %s #%d at 0x%x (from 0x%x)\n",
 					what, found+1, addr, i);
 			}
 
@@ -925,7 +925,7 @@ static int FindEPK(const struct ImageHandle *ih)
 		off = le16toh(ih->d.u16[i/2+1]);
 		off |= 0x10000;
 		if (Verbose) {
-			printf("%s: possible EPK @0x%x 0x%x\n", ih->filename, i, off);
+			printf( "%s: possible EPK @0x%x, ASM @0x%x\n", ih->filename, off, i);
 			if (Verbose>1) {
 				hexdump(ih->d.u8+i-4, 4, "[");
 				hexdump(ih->d.u8+i, sizeof(n), "]");
@@ -942,14 +942,14 @@ static int FindEPK(const struct ImageHandle *ih)
 		static const char sig[]={0xc3, 0x3c, 0x5a, 0x5a, 0xff, 0xff};
 		i=0x10000-2;
 		if (memcmp(ih->d.u8+i, sig, sizeof(sig))==0) {
+			off=i+6;
 			if (Verbose) {
-				printf("%s: found EPK sig 0x%x\n", ih->filename, i);
+				printf(" %s: found EPK @0x%x, sig 0x%x\n", ih->filename, off, i);
 				if (Verbose>1) {
 					hexdump(ih->d.u8+i, 6, "\n\n");
 					hexdump(ih->d.u8+i+6, 0x40, "\n");
 				}
 			}
-			off=i+6;
 			ret=0;
 		} else {
 			off=0;
@@ -1008,8 +1008,8 @@ static int FindPN(const struct ImageHandle *ih)
 			)
 			continue;
 		if (Verbose) {
-			printf("%s: possible P/N #%d @0x%x 0x%x\n", ih->filename,
-				found+1, i, addr);
+			printf(" %s: possible P/N #%d @0x%x, ASM @0x%x\n", ih->filename,
+				found+1, addr, i);
 			if (Verbose>1) {
 				hexdump(ih->d.u8+i-4, 4, "[");
 				hexdump(ih->d.u8+i, sizeof(n), "]");
@@ -1022,7 +1022,7 @@ static int FindPN(const struct ImageHandle *ih)
 
 	if(found!=1 && found !=2) {
 		if(Verbose>2)
-			printf("%s: found=%d\n", ih->filename, found);
+			printf(" %s: found=%d\n", ih->filename, found);
 		printf("missing\n");
 		return -1;
 	}
@@ -1086,6 +1086,8 @@ static int FindSSECU(const struct ImageHandle *ih, const void *n,
 		if (i+4<ih->len)
 		{
 			offset=i;
+			if (Verbose>1)
+				printf(" Found SSECU \"%s\" @0x%x\n", (char *)n, offset);
 			found++;
 		}
 	}
