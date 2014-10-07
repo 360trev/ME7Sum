@@ -493,6 +493,10 @@ int main(int argc, char **argv)
 	}
 
 	if(Config.crc[1].r.start && Config.crc[1].r.end) {
+		if(Verbose && Config.crc[1].offset && Config.csm_offset) {
+			printf(" %s has both main CRC and checksum offsets!\n", ih.filename);
+		}
+
 		/* Note: both CRC and checksum are possible! */
 		if(Config.crc[1].offset)
 		{
