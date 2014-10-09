@@ -822,7 +822,7 @@ static int FindData(const struct ImageHandle *ih, const char *what,
 			uint32_t addr;
 
 			/* maybe segment address */
-			if (high>=0x100) high_shift=14;
+			if (high&0xfe00) high_shift=14;
 
 			addr=(high<<high_shift) | low;
 
@@ -844,6 +844,9 @@ static int FindData(const struct ImageHandle *ih, const char *what,
 					last_where = i;
 				}
 				found++;
+			} else if (Verbose>1) {
+				printf(" %s #%d at 0x%x (from 0x%x) out of range\n",
+					what, found+1, addr, i);
 			}
 		}
 	}
@@ -917,9 +920,10 @@ static int NormalizeRange(const struct ImageHandle *ih, struct Range *r)
 /* Actual work */
 static int FindEPK(const struct ImageHandle *ih)
 {
-	static const uint8_t n[]={0x43, 0xF8, 0x00, 0x00, 0x9d, 0x07, 0x09, 0x81};
-	static const uint8_t m[]={0xf3, 0xff, 0x00, 0x00, 0xff, 0xff, 0xff, 0xff};
-	int i, off=0, found=0;
+	//										LL    LL                      HH?
+	static const uint8_t n[]={0x43, 0xF8, 0x00, 0x00, 0x9d, 0x07, 0x09, 0x80};
+	static const uint8_t m[]={0xf3, 0xff, 0x00, 0x00, 0xff, 0xff, 0xff, 0xf0};
+	int i, off=0, high, low, found=0;
 	int max = 0x30000;
 	const char *start;
 	int len=0;
@@ -931,9 +935,14 @@ static int FindEPK(const struct ImageHandle *ih)
 	{
 		i=search_image(ih, i, n, m, sizeof(n), 2);
 		if (i<0 || i>max) break;
-		off = le16toh(ih->d.u16[i/2+1]);
-		/* FIXME: hardcoded HH HH to 0x0081xxxx? */
-		off |= 0x10000;
+		low = le16toh(ih->d.u16[i/2+1]);
+		high = le16toh(ih->d.u16[i/2+3])>>8;	// ??
+		off = (high<<16) | low;
+		if (off<Config.base_address || off+sizeof(n) > Config.base_address+ih->len) {
+			printf(" ERROR: INVALID ADDR 0x%x\n", off);
+			break;
+		}
+		off -= Config.base_address;
 		if (Verbose) {
 			printf( "%s: possible EPK @0x%x, ASM @0x%x\n", ih->filename, off, i);
 			if (Verbose>1) {
@@ -991,121 +1000,101 @@ static int FindEPK(const struct ImageHandle *ih)
 	return 0;
 }
 
-static int FindPN(const struct ImageHandle *ih)
+struct string_desc {
+	uint8_t tag;
+	uint8_t len;
+	uint16_t ptr;
+	uint16_t seg;
+};
+
+static int getInfoItem(const struct ImageHandle *ih, InfoItem *ii, const struct string_desc *d)
 {
-	static const uint8_t n[]=	//         LL    LL
-	{0xF7, 0x8E, 0x00, 0x00, 0xE6, 0xF4, 0x00, 0x00, 0xF6, 0xF4, 0x00, 0x00, 0xE6, 0xF4};
-	static const uint8_t m[]=
-	{0xff, 0xff, 0x00, 0x00, 0xff, 0xf4, 0x00, 0x00, 0xff, 0xff, 0x00, 0x00, 0xE6, 0xF4};
-
-	int i, off[4]={0,0,0,0}, found=0;
-	int max = 0x40000;
-	int len;
-
-	printf(" Searching for P/N...");
-
-	for(i=0;i<max && found<4;i+=2)
-	{
-		int addr;
-		i=search_image(ih, i, n, m, sizeof(n), 2);
-		if (i<0) break;
-		addr = le16toh(ih->d.u16[i/2+3]);
-
-		/* FIXME: hardcoded HH HH to 0x0081xxxx? */
-		addr |= 0x10000;
-		if (!isalnum((int)ih->d.s[addr+0]) ||
-			!isalnum((int)ih->d.s[addr+1]) ||
-			!isalnum((int)ih->d.s[addr+2]) ||
-			!isalnum((int)ih->d.s[addr+3])
-			)
-			continue;
-		if (Verbose) {
-			printf(" %s: possible P/N #%d @0x%x, ASM @0x%x\n", ih->filename,
-				found+1, addr, i);
-			if (Verbose>1) {
-				hexdump(ih->d.u8+i-4, 4, "[");
-				hexdump(ih->d.u8+i, sizeof(n), "]");
-				hexdump(ih->d.u8+i+sizeof(n), 4,  "\n\n");
-				hexdump(ih->d.u8+addr, 0x40, "\n");
-			}
-		}
-		off[found++]=addr;
-	}
-
-	if(found!=1 && found !=2) {
-		if(Verbose>2)
-			printf(" %s: found=%d\n", ih->filename, found);
-		printf("missing\n");
-		return -1;
-	}
-
-	len=strnlen(ih->d.s+off[0], 80);
-	if(len<80) {
-		char buf[80];
-		char *argv[7];
-		int argc;
-
-		memset(argv, 0, sizeof(argv));
-
-		snprintf(buf, sizeof(buf), "%s", ih->d.s+off[0]);
-
-		argc = str_split(buf, argv, 6, " ");
-
-		/* P/N, engine id1, engine id2, sw version */
-		if(argc>0) {
-			InfoConfig.part_number.off = off[0];
-			InfoConfig.part_number.len = strnlen(argv[0], 80);
-		}
-
-		if(argc>2) {
-			InfoConfig.engine_id.off = off[0]+(argv[1]-buf);
-			InfoConfig.engine_id.len = strnlen(argv[1], 80)
-				+ strnlen(argv[2], 80) + 1;
-		}
-
-		if (found==2) {
-			int first=InfoConfig.engine_id.off;
-			int last;
-			for(last=off[1]-1;last>first;last--) {
-				if (ih->d.s[last]!=' ') break;
-			}
-
-			InfoConfig.engine_id.len = last-first+1;
-			InfoConfig.sw_version.off = off[1];
-			InfoConfig.sw_version.len = 4;
-		} else {
-			if(argc>3) {
-				InfoConfig.sw_version.off = off[0]+(argv[3]-buf);
-				InfoConfig.sw_version.len = 4;
-			}
+	int ptr = le16toh(d->ptr);
+	int seg = le16toh(d->seg);
+	int addr = (seg<<14) | ptr;
+	if(d->tag==6) {
+		if(addr>Config.base_address && addr+d->len<Config.base_address+ih->len) {
+			ii->off=addr-Config.base_address;
+			ii->len=d->len;
+			return d->len;
 		}
 	}
+	return -1;
+}
 
-	printf("OK\n");
+static int dump_string_desc(const struct ImageHandle *ih, const struct string_desc *d)
+{
+	struct InfoItem ii={0,0};
+	char buf[257];
+	int ret = getInfoItem(ih, &ii, d);
+
+	if (ret<0) return -1;
+
+	if (ii.len) {
+		snprintf(buf, ii.len, "%s", ih->d.s+ii.off);
+		printf("'%s'", buf);
+	}
+
 	return 0;
 }
 
-static int FindSSECU(const struct ImageHandle *ih, const void *n,
-	InfoItem *ii)
+static int FindECUID(const struct ImageHandle *ih)
 {
-	const uint8_t m[]={0xff, 0xff, 0xff, 0xff};
-	int offset, found=0, i=0;
+	int found;
+	uint32_t offset[2]={0,0};
+	uint32_t where=0;
+	// E6 F4 .. .. E6 F5 06 02 F6 F4 42 E2 F6 F5 44 E2
+	// E6 F4 .. .. E6 F5 06 02 F6 F4 40 E2 F6 F5 42 E2
+	// \e6f4..e6f50602f6f4.e2f6f5.e2
+	//                                LL    LL                HH    HH
+	uint8_t needle[] = {0xE6, 0xF4, 0x00, 0x00, 0xE6, 0xF5, 0x06, 0x02, 0xF6, 0xF4, 0x42, 0xE2, 0xF6, 0xF5, 0x44, 0xE2};
+	uint8_t   mask[] = {0xff, 0xff, 0x00, 0x00, 0xff, 0xff, 0xf0, 0xff, 0xff, 0xff, 0xf0, 0xff, 0xff, 0xff, 0xf0, 0xff};
 
-	for(i=0;i+4<ih->len;i++)
+	printf(" Searching for ECUID table...");
+
+	found=FindData(ih, "ECUID table", needle, mask, sizeof(needle), 1, 3, offset, 2, &where);
+
+	if (found==2)
 	{
-		i=search_image(ih, i, n, m, 4, 1);
-		if (i<0) break;
-		offset=i;
-		if (Verbose>1)
-			printf(" Found SSECU \"%s\" @0x%x\n", (char *)n, offset);
-		found++;
+		int i;
+		struct string_desc *d0=ih->d.p+offset[0];
+		struct string_desc *d1=ih->d.p+offset[1];
+		if (Verbose>2) {
+			for(i=0; i<30; i++) {
+				if (d0[i].tag==6) {
+					printf("0 %d:", i);
+					dump_string_desc(ih, d0+i);
+					printf("\n");
+				}
+			}
+			for(i=0; i<30; i++) {
+				if (d1[i].tag==6) {
+					printf("1 %d:", i);
+					dump_string_desc(ih, d1+i);
+					printf("\n");
+				}
+			}
+		}
+		if (getInfoItem(ih, &InfoConfig.hw_number, d0+2)<=0) {
+			d0=ih->d.p+offset[1];
+			d1=ih->d.p+offset[0];
+			getInfoItem(ih, &InfoConfig.hw_number, d0+2);
+		}
+		getInfoItem(ih, &InfoConfig.sw_number, d0+4);
+		getInfoItem(ih, &InfoConfig.part_number, d0+10);
+		getInfoItem(ih, &InfoConfig.sw_version, d0+11);
+		getInfoItem(ih, &InfoConfig.engine_id, d0+19);
+		// getInfoItem(ih, &InfoConfig.HW_MAN, d1+1);
+		printf("OK\n");
+		return 0;
 	}
 
-	if(found==1) {
-		ii->off=offset;
-		ii->len=10;
+	if (found>1)
+	{
+		printf("Too many matches (%d). ECUID table find failed\n", found);
 	}
 
+	printf("%d matches, missing\n", found);
 	return 0;
 }
 
@@ -1113,9 +1102,7 @@ static int FindRomInfo(const struct ImageHandle *ih)
 {
 	int ret=0;
 	ret+=FindEPK(ih);
-	ret+=FindPN(ih);
-	ret+=FindSSECU(ih, "0261", &InfoConfig.hw_number);
-	ret+=FindSSECU(ih, "1037", &InfoConfig.sw_number);
+	ret+=FindECUID(ih);
 	return ret;
 }
 
@@ -1224,6 +1211,7 @@ static int FindMD5Ranges(struct ImageHandle *ih)
 		count = ((p[1]&0xf0)>>4)+1;
 		/* FIXME: hardcoded HH HH to 0x0081xxxx? */
 		table =le16toh(p16[4])|0x10000;
+		// printf("MD5 arg2 0x%04x\n", le16toh(p16[6]));
 
 		DEBUG_RSA(" Found MD5 ASM @0x%x (table=%x, count=%d)\n", addr, table,
 			count);
