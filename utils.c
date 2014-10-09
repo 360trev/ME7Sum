@@ -122,7 +122,7 @@ static int memcmp_mask(const void *ptr1, const void *ptr2, const void *mask, siz
     return 0;
 }
 
-/* returns -1 on failure, start if found, start+align if not found */
+/* returns -1 on failure, start if found */
 int search_image(const struct ImageHandle *ih, size_t start, const void *needle, const void *mask, int len, int align)
 {
     if (start<0) return -1;
@@ -135,8 +135,7 @@ int search_image(const struct ImageHandle *ih, size_t start, const void *needle,
 	    return start;
 	}
     }
-    // printf("failed, returning 0x%x\n", start);
-    return start;
+    return -1;
 }
 
 void hexdump(const uint8_t *buf, int len, const char *end)

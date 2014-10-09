@@ -815,11 +815,16 @@ static int FindData(const struct ImageHandle *ih, const char *what,
 	{
 		i=search_image(ih, i, n, m, len, 2);
 		if (i<0) break;
-		if (i+len<ih->len)
-		{
+		else {
+			int high_shift=16;
 			uint16_t low=le16toh(ih->d.u16[i/2+off_l]);
 			uint16_t high=le16toh(ih->d.u16[i/2+off_h]);
-			uint32_t addr=(high<<16) | low;
+			uint32_t addr;
+
+			/* maybe segment address */
+			if (high>=0x100) high_shift=14;
+
+			addr=(high<<high_shift) | low;
 
 			if (Verbose>1) {
 				printf(" Found possible %s #%d at 0x%x (from 0x%x)\n",
@@ -925,8 +930,9 @@ static int FindEPK(const struct ImageHandle *ih)
 	for(i=0;i<max;i+=2)
 	{
 		i=search_image(ih, i, n, m, sizeof(n), 2);
-		if(i<0 || i>=max) break;
+		if (i<0 || i>max) break;
 		off = le16toh(ih->d.u16[i/2+1]);
+		/* FIXME: hardcoded HH HH to 0x0081xxxx? */
 		off |= 0x10000;
 		if (Verbose) {
 			printf( "%s: possible EPK @0x%x, ASM @0x%x\n", ih->filename, off, i);
@@ -1002,8 +1008,10 @@ static int FindPN(const struct ImageHandle *ih)
 	{
 		int addr;
 		i=search_image(ih, i, n, m, sizeof(n), 2);
-		if(i<0 || i>=max) break;
+		if (i<0) break;
 		addr = le16toh(ih->d.u16[i/2+3]);
+
+		/* FIXME: hardcoded HH HH to 0x0081xxxx? */
 		addr |= 0x10000;
 		if (!isalnum((int)ih->d.s[addr+0]) ||
 			!isalnum((int)ih->d.s[addr+1]) ||
@@ -1087,13 +1095,10 @@ static int FindSSECU(const struct ImageHandle *ih, const void *n,
 	{
 		i=search_image(ih, i, n, m, 4, 1);
 		if (i<0) break;
-		if (i+4<ih->len)
-		{
-			offset=i;
-			if (Verbose>1)
-				printf(" Found SSECU \"%s\" @0x%x\n", (char *)n, offset);
-			found++;
-		}
+		offset=i;
+		if (Verbose>1)
+			printf(" Found SSECU \"%s\" @0x%x\n", (char *)n, offset);
+		found++;
 	}
 
 	if(found==1) {
@@ -1203,12 +1208,10 @@ static int FindMD5Ranges(struct ImageHandle *ih)
 	printf(" Searching for MD5 ranges...");
 	for(i=0;i+sizeof(needle)+2<ih->len;i+=2) {
 		i=search_image(ih, i, needle, mask, sizeof(needle), 2);
-		if(i<0) break;
-		if(i+sizeof(needle)<ih->len) {
-			found++;
-			DEBUG_RSA(" Found possible MD5 ASM #%d @0x%x\n", found, i);
-			addr=i;
-		}
+		if (i<0) break;
+		found++;
+		DEBUG_RSA(" Found possible MD5 ASM #%d @0x%x\n", found, i);
+		addr=i;
 	}
 
 	if (found!=1) {
@@ -2108,12 +2111,9 @@ static int FindMainProgramOffset(const struct ImageHandle *ih)
 	{
 		i=search_image(ih, i, needle, mask, sizeof(needle), 2);
 		if (i<0) break;
-		if (i+sizeof(needle)<ih->len)
-		{
-			DEBUG_MAIN("Found possible main block descriptor at 0x%x\n", i);
-			offset=i;
-			found++;
-		}
+		DEBUG_MAIN("Found possible main block descriptor at 0x%x\n", i);
+		offset=i;
+		found++;
 	}
 
 	if (found==1)
@@ -2269,9 +2269,7 @@ static int FindChecksumBlks(const struct ImageHandle *ih, int which)
 		DEBUG_MULTIPOINT("%d: Searching starting at 0x%d\n", which+1, i);
 		i=search_image(ih, i, needle, NULL, size, 2);
 		if (i<0) break;
-
-		if (i+Config.multipoint_desc_len<ih->len)
-		{
+		else {
 			struct MultipointDescriptor *desc =
 				(struct MultipointDescriptor *)(ih->d.u8+i);
 
