@@ -1,7 +1,7 @@
 #!/bin/bash
 for i in $*; do
-    box=$( ../me7sum -s $i | grep "Part Number" | cut -f 2 -d \')
-    ver=$( ../me7sum -s $i | grep "SW Version" | cut -f 2 -d \')
+    box=$( ../me7sum -s $i | grep "Part Number" | sed -e 's/ //g' | cut -f 2 -d \')
+    ver=$( ../me7sum -s $i | grep "SW Version" | sed -e 's/ //g' | cut -f 2 -d \')
     ssecu=$( ../me7sum -s $i | grep "SW Number" | sed -e 's/^1037//' | sed -e 's/ //g' )
 
     if [ -z "$box" -o -z "$ver" -o -z "$ssecu" ]; then
