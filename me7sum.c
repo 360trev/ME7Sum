@@ -1057,8 +1057,8 @@ static int FindECUID(const struct ImageHandle *ih)
 	if (found==2)
 	{
 		int i;
-		struct string_desc *d0=ih->d.p+offset[0];
-		struct string_desc *d1=ih->d.p+offset[1];
+		const struct string_desc *d0=(struct string_desc *)(ih->d.u8+offset[0]);
+		const struct string_desc *d1=(struct string_desc *)(ih->d.u8+offset[1]);
 		if (Verbose>2) {
 			for(i=0; i<30; i++) {
 				if (d0[i].tag==6) {
@@ -1076,8 +1076,8 @@ static int FindECUID(const struct ImageHandle *ih)
 			}
 		}
 		if (getInfoItem(ih, &InfoConfig.hw_number, d0+2)<=0) {
-			d0=ih->d.p+offset[1];
-			d1=ih->d.p+offset[0];
+			d0=(const struct string_desc *)(ih->d.u8+offset[1]);
+			d1=(const struct string_desc *)(ih->d.u8+offset[0]);
 			getInfoItem(ih, &InfoConfig.hw_number, d0+2);
 		}
 		getInfoItem(ih, &InfoConfig.sw_number, d0+4);
