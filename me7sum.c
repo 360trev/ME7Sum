@@ -406,12 +406,12 @@ int main(int argc, char **argv)
 	//
 
 	printf("\nStep #%d: Reading ROM info ..\n", ++Step);
-	if(InfoConfig.EPK.off==0)
+	if(InfoConfig.part_number.off==0)
 	{
 		FindRomInfo(&ih);
 	}
 
-	if(InfoConfig.EPK.off && InfoConfig.part_number.off)
+	if(InfoConfig.part_number.off)
 	{
 		DoRomInfo(&ih, osconfig);
 	}
@@ -1054,7 +1054,7 @@ static int FindECUID(const struct ImageHandle *ih)
 
 	found=FindData(ih, "ECUID table", needle, mask, sizeof(needle), 1, 3, offset, 2, &where);
 
-	if (found==2)
+	if (found>0)
 	{
 		int i;
 		const struct string_desc *d0=(struct string_desc *)(ih->d.u8+offset[0]);
@@ -1067,15 +1067,17 @@ static int FindECUID(const struct ImageHandle *ih)
 					printf("\n");
 				}
 			}
-			for(i=0; i<30; i++) {
-				if (d1[i].tag==6) {
-					printf("1 %d:", i);
-					dump_string_desc(ih, d1+i);
-					printf("\n");
+			if (found>1) {
+				for(i=0; i<30; i++) {
+					if (d1[i].tag==6) {
+						printf("1 %d:", i);
+						dump_string_desc(ih, d1+i);
+						printf("\n");
+					}
 				}
 			}
 		}
-		if (getInfoItem(ih, &InfoConfig.hw_number, d0+2)<=0) {
+		if (getInfoItem(ih, &InfoConfig.hw_number, d0+2)<=0 && found>1) {
 			d0=(const struct string_desc *)(ih->d.u8+offset[1]);
 			d1=(const struct string_desc *)(ih->d.u8+offset[0]);
 			getInfoItem(ih, &InfoConfig.hw_number, d0+2);
@@ -1084,7 +1086,8 @@ static int FindECUID(const struct ImageHandle *ih)
 		getInfoItem(ih, &InfoConfig.part_number, d0+10);
 		getInfoItem(ih, &InfoConfig.sw_version, d0+11);
 		getInfoItem(ih, &InfoConfig.engine_id, d0+19);
-		// getInfoItem(ih, &InfoConfig.HW_MAN, d1+1);
+		//if(found>1)
+		//	getInfoItem(ih, &InfoConfig.HW_MAN, d1+1);
 		printf("OK\n");
 		return 0;
 	}
