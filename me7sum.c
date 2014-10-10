@@ -492,7 +492,8 @@ int main(int argc, char **argv)
 		FindMainCSMOffsets(&ih);	/* Detect if using Checksum algo */
 	}
 
-	if(Config.crc[1].r.start && Config.crc[1].r.end) {
+	if(Config.crc[1].r.start && Config.crc[1].r.end &&
+		(Config.crc[1].offset || Config.csm_offset)) {
 		if(Verbose && Config.crc[1].offset && Config.csm_offset) {
 			printf(" %s has both main CRC and checksum offsets!\n", ih.filename);
 		}
@@ -507,9 +508,9 @@ int main(int argc, char **argv)
 			DoMainCSMs(&ih);
 		}
 	}
-	else if(Config.crc[1].offset || Config.csm_offset)
+	else
 	{
-		printf("\nStep #%d: ERROR! Skipping main data checksums ... UNDEFINED\n",
+		printf("\nStep #%d: ERROR! Skipping Main Data checksums ... UNDEFINED\n",
 			Step);
 #ifdef DEBUG_CRC_MATCHING
 		DoMainCRCs(&ih);
