@@ -510,7 +510,7 @@ int main(int argc, char **argv)
 	}
 	else
 	{
-		printf("\nStep #%d: ERROR! Skipping Main Data checksums ... UNDEFINED\n",
+		printf("Step #%d: ERROR! Skipping Main Data checksums ... UNDEFINED\n",
 			Step);
 #ifdef DEBUG_CRC_MATCHING
 		DoMainCRCs(&ih);
