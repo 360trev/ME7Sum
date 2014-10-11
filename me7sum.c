@@ -644,9 +644,11 @@ out:
 	if (ErrorsCorrected!=ErrorsFound) {
 		printf("\n*** WARNING! %d/%d uncorrected error(s) in %s! ***\n",
 			ErrorsFound-ErrorsCorrected, ErrorsFound, input);
+	} else if (output) {
+		printf("\n*** DONE! %d/%d error(s) in %s corrected in %s! ***\n", ErrorsCorrected,
+			ErrorsFound, input, output);
 	} else {
-		printf("\n*** DONE! %d/%d error(s) corrected in %s! ***\n", ErrorsCorrected,
-			ErrorsFound, input);
+		printf("\n*** DONE! %d error(s) in %s! ***\n", ErrorsFound, input);
 	}
 
 	return 0;
