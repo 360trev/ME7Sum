@@ -9,10 +9,6 @@ http://nyetwurk.github.com/ME7Sum/
 RUNNING:
 --------
 
-*********************************
-** THIS PROGRAM HAS KNOWN BUGS **
-*********************************
-
 To check image.bin:
 
   ME7Check image.bin
@@ -21,6 +17,10 @@ To check image.bin:
 To output corrected checksums:
 
   me7sum image.bin out.bin
+
+*********************************
+** THIS PROGRAM HAS KNOWN BUGS **
+*********************************
 
 Note that if me7sum cannot completely detect checksum/CRC locations correctly,
 it will not output a file!
@@ -33,6 +33,16 @@ it will not output a file!
 
 KNOWN ISSUES:
 -------------
+** DO NOT USE ON TUNER MODIFIED BINARIES! **
+
+Many tuners modify the CRC/Checksum algorithms to discourage modification
+of their tunes. ME7Sum most likely will not detect such modifications.
+
+ME7Check may detect such modifications, but there is no way for it to
+be 100% sure.
+
+Never use ME7Sum on a file that you your self did not write.
+
 ** RSA signature support is experimental, and may have bugs! **
 
 ME7Check should not fail on RSA corrected bins. If it does, please email the
