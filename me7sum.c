@@ -95,7 +95,7 @@ struct rom_config {
 		struct Range md5[MD5_MAX_BLKS];
 	} rsa;
 	uint32_t	romsys;
-
+	uint32_t	crctab[2];
 	uint32_t	multipoint_block_start[2];	/* start of multipoint block descriptors (two sets, first one isn't always there) */
 	uint32_t	multipoint_desc_len;		/* size of descriptors */
 	uint32_t	main_checksum_offset;		/* two start/end pairs, one at offset, other at offset+8 */
@@ -180,6 +180,9 @@ static int DoROMSYS(struct ImageHandle *ih);
 static int FindRSAOffsets(struct ImageHandle *ih);
 static int FindMD5Ranges(struct ImageHandle *ih);
 static int DoRSA(struct ImageHandle *ih);
+
+static int FindCRCTab(const struct ImageHandle *ih);
+static int DoCRCTab(struct ImageHandle *ih);
 
 static int FindMainCRCPreBlk(const struct ImageHandle *ih);
 static int FindMainCRCBlks(const struct ImageHandle *ih);
@@ -465,6 +468,16 @@ int main(int argc, char **argv)
 	}
 	DEBUG_EXIT_RSA;
 
+
+	printf("\nStep #%d: Finding CRC table ..\n", ++Step);
+	if(!Config.crctab[0])
+		FindCRCTab(&ih);
+	if(Config.crctab[0]) {
+		DoCRCTab(&ih);
+	} else {
+		printf("Step #%d: ERROR! Couldn't find CRC table\n", Step);
+		ErrorsUncorrectable++;
+	}
 
 	//
 	// Main data checksums if specified
@@ -1734,6 +1747,78 @@ static int DoROMSYS(struct ImageHandle *ih)
 	result |= DoROMSYS_ParamPage(ih, &desc);
 
 	return result;
+}
+
+static int FindCRCTab(const struct ImageHandle *ih)
+{
+	uint8_t needle[8];
+	int off[2]={0,0}, found=0, i;
+
+	printf(" Searching for CRC table(s)...");
+
+	memcpy_to_le32(needle, crc32_tab, sizeof(needle));
+
+	for(i=0;i+sizeof(needle)<ih->len;i+=2)
+	{
+		i=search_image(ih, i, needle, NULL, sizeof(needle), 2);
+		if (i<0) break;
+		else {
+			if (Verbose>1) {
+				printf(" Found possible CRC table #%d @0x06%x\n", found+1, i);
+			}
+			if(found<2) off[found]=i;
+			found++;
+		}
+	}
+
+	if (found>2) {
+		printf("missing\n");
+		return -1;
+	}
+	if (found>0) {
+		Config.crctab[0]=off[0];
+		if (found>1)
+			Config.crctab[1]=off[1];
+		printf("OK\n");
+		return 0;
+	}
+
+	printf("missing\n");
+	return -1;
+}
+
+static int DoCRCTab(struct ImageHandle *ih)
+{
+	uint8_t letab[1024];
+	int i;
+
+	assert(sizeof(letab)==sizeof(crc32_tab));
+
+	memcpy_to_le32(letab, crc32_tab, sizeof(letab));
+
+
+	for(i=0;i<2;i++) {
+		if(!Config.crctab[i]) continue;
+		if(memcmp(ih->d.u8+Config.crctab[i], letab, sizeof(letab))) {
+			printf(" CRC table #%d: ", i);
+			ErrorsFound++;
+			if(Verbose>2) {
+				hexdump(ih->d.u8+Config.crctab[i], 1024, "\n");
+				hexdump(letab, 1024, "\n");
+			}
+			if (Config.readonly)
+			{
+				printf(" ** NOT OK - TUNER MODIFIED? **\n");
+				return -1;
+			}
+			memcpy_to_le32(ih->d.u8+Config.crctab[i], letab, sizeof(letab));
+			ErrorsCorrected++;
+			printf(" ** FIXED - WARNING: REVERTED TUNER MODIFICATION! **\n");
+		}
+	}
+
+	printf(" CRC table(s) OK\n");
+	return 0;
 }
 
 static int FindMainCRCPreBlk(const struct ImageHandle *ih)
