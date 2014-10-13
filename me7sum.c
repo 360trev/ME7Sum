@@ -1498,7 +1498,7 @@ static int DoRSA(struct ImageHandle *ih)
 	for(i=0;i<MD5_MAX_BLKS;i++) {
 		int len=Config.rsa.md5[i].end-Config.rsa.md5[i].start+1;
 		if (len>0) {
-			printf(" %d) Adr: 0x%08X-0x%08X\n", i+1,
+			printf(" %d) 0x%08X-0x%08X\n", i+1,
 				Config.rsa.md5[i].start,
 				Config.rsa.md5[i].end);
 			MD5_Update(&ctx, ih->d.u8+Config.rsa.md5[i].start, len);
@@ -2038,7 +2038,7 @@ static int DoMainCRCs(struct ImageHandle *ih)
 
 			nCalcCRC = crc32(nCalcCRCSeed, ih->d.u8+nStart, nLen);
 
-			printf(" %d) Adr: 0x%06X-0x%06X", i, Config.crc[i].r.start, Config.crc[i].r.end);
+			printf(" %d) 0x%06X-0x%06X", i, Config.crc[i].r.start, Config.crc[i].r.end);
 
 			if (nCRCAddr+4>ih->len)
 			{
@@ -2081,7 +2081,7 @@ static int DoMainCRCs(struct ImageHandle *ih)
 		}
 		else
 		{
-			DEBUG_CRC(" %d) Adr: 0x%06X-0x%06X SKIPPED\n", i,
+			DEBUG_CRC(" %d) 0x%06X-0x%06X SKIPPED\n", i,
 				Config.crc[0].r.start, Config.crc[0].r.end);
 		}
 	}
@@ -2114,7 +2114,7 @@ static int DoMainCSMs(struct ImageHandle *ih)
 	{
 		if(Config.crc[i].r.start && Config.crc[i].r.end)
 		{
-			printf(" %d) Adr: 0x%06X-0x%06X", i,
+			printf(" %d) 0x%06X-0x%06X", i,
 				Config.crc[i].r.start, Config.crc[i].r.end);
 
 			/* bytewise checksum */
@@ -2254,7 +2254,7 @@ static int DoMainChecksum(struct ImageHandle *ih, uint32_t nOffset, uint32_t nCs
 
 	// block 1
 	nCalcChksum = CalcChecksumBlk16(ih, &r[0]);
-	printf(" 1) Adr: 0x%06X-0x%06X\n", r[0].start, r[0].end);
+	printf(" 1) 0x%06X-0x%06X\n", r[0].start, r[0].end);
 
 	if (r[0].end + 1 != r[1].start)
 	{
@@ -2271,7 +2271,7 @@ static int DoMainChecksum(struct ImageHandle *ih, uint32_t nOffset, uint32_t nCs
 
 	// block 2
 	nCalcChksum2= CalcChecksumBlk16(ih, &r[1]);
-	printf(" 2) Adr: 0x%06X-0x%06X\n", r[1].start, r[1].end);
+	printf(" 2) 0x%06X-0x%06X\n", r[1].start, r[1].end);
 
 	nCalcChksum += nCalcChksum2;
 
@@ -2423,7 +2423,7 @@ static int DoChecksumBlk(struct ImageHandle *ih, uint32_t nStartBlk, struct strb
 		}
 	}
 
-	sbprintf(buf, " Adr: 0x%06X-0x%06X ", desc.r.start, desc.r.end);
+	sbprintf(buf, " 0x%06X-0x%06X ", desc.r.start, desc.r.end);
 
 	if(desc.r.start==0xffffffff)
 	{
