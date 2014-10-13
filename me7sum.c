@@ -1811,7 +1811,7 @@ static int DoCRCTab(struct ImageHandle *ih)
 				printf(" ** NOT OK - TUNER MODIFIED? **\n");
 				return -1;
 			}
-			memcpy_to_le32(ih->d.u8+Config.crctab[i], letab, sizeof(letab));
+			memcpy(ih->d.u8+Config.crctab[i], letab, sizeof(letab));
 			ErrorsCorrected++;
 			printf(" ** FIXED - WARNING: REVERTED TUNER MODIFICATION! **\n");
 		}
