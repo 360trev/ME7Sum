@@ -424,9 +424,10 @@ int main(int argc, char **argv)
 		ErrorsUncorrectable++;
 	}
 
-	if(summary>0) goto out;
+	if(summary && summary<=Step) goto out;
 
 	DEBUG_EXIT_ROM;
+
 
 	//
 	// ROMSYS
@@ -448,6 +449,8 @@ int main(int argc, char **argv)
 		ErrorsUncorrectable++;
 	}
 
+	if(summary && summary<=Step) goto out;
+
 	DEBUG_EXIT_ROMSYS;
 
 
@@ -466,18 +469,27 @@ int main(int argc, char **argv)
 			ErrorsUncorrectable++;
 		}
 	}
+
+	if(summary && summary<=Step) goto out;
+
 	DEBUG_EXIT_RSA;
 
 
-	printf("\nStep #%d: Finding CRC table ..\n", ++Step);
+	//
+	// CRC table(s)
+	//
+	printf("\nStep #%d: Finding CRC table(s) ..\n", ++Step);
 	if(!Config.crctab[0])
 		FindCRCTab(&ih);
 	if(Config.crctab[0]) {
 		DoCRCTab(&ih);
 	} else {
-		printf("Step #%d: ERROR! Couldn't find CRC table\n", Step);
+		printf("Step #%d: ERROR! Couldn't find CRC table(s)\n", Step);
 		ErrorsUncorrectable++;
 	}
+
+	if(summary && summary<=Step) goto out;
+
 
 	//
 	// Main data checksums if specified
@@ -506,9 +518,16 @@ int main(int argc, char **argv)
 	}
 
 	if(Config.crc[1].r.start && Config.crc[1].r.end &&
-		(Config.crc[1].offset || Config.csm_offset)) {
-		if(Verbose && Config.crc[1].offset && Config.csm_offset) {
-			printf(" %s has both main CRC and checksum offsets!\n", ih.filename);
+		(Config.crc[1].offset || Config.csm_offset  )) {
+		if(Verbose && Config.csm_offset) {
+			if(Config.crc[1].offset) {
+				printf(" %s has both main CRC and checksum offsets!\n",
+					ih.filename);
+			} else {
+				printf("WARNING: %s has no main CRC offset(s) but does have a main checksum offset!\n",
+					ih.filename);
+				DoMainCRCs(&ih);
+			}
 		}
 
 		/* Note: both CRC and checksum are possible! */
@@ -531,6 +550,8 @@ int main(int argc, char **argv)
 #endif
 		ErrorsUncorrectable++;
 	}
+
+	if(summary && summary<=Step) goto out;
 
 	DEBUG_EXIT_CRC;
 
@@ -558,6 +579,8 @@ int main(int argc, char **argv)
 		printf("Step #%d: ERROR! Skipping Main Program Checksums.. UNDEFINED\n", Step);
 		ErrorsUncorrectable++;
 	}
+
+	if(summary && summary<=Step) goto out;
 
 	DEBUG_EXIT_MAIN;
 
@@ -1610,7 +1633,7 @@ static uint32_t ProgramPageSum(struct ImageHandle *ih, const struct Range *r)
 		uint16_t *p16[2];
 		p16[0]=(uint16_t *)(ih->d.u8+addr);			/* first word of page */
 		p16[1]=(uint16_t *)(ih->d.u8+addr+8*1024-2);	/* last word of page */
-		if (Verbose>1)
+		if (Verbose>4)
 			printf("      word[0x%06X]+word[0x%06X]\n",
 				addr, addr+8*1024-2);
 		sum+=le16toh(*p16[0]) + le16toh(*p16[1]);
@@ -1749,12 +1772,11 @@ static int DoROMSYS(struct ImageHandle *ih)
 	return result;
 }
 
-static int FindCRCTab(const struct ImageHandle *ih)
+static int crc_table_fallback(const struct ImageHandle *ih, uint32_t *off)
 {
-	uint8_t needle[8];
-	int off[2]={0,0}, found=0, i;
-
-	printf(" Searching for CRC table(s)...");
+	uint8_t needle[16];
+	int i;
+	int found=0;
 
 	memcpy_to_le32(needle, crc32_tab, sizeof(needle));
 
@@ -1764,27 +1786,110 @@ static int FindCRCTab(const struct ImageHandle *ih)
 		if (i<0) break;
 		else {
 			if (Verbose>1) {
-				printf(" Found possible CRC table #%d @0x06%x\n", found+1, i);
+				printf(" Found possible CRC table #%d @0x%06x\n", found+1, i);
 			}
 			if(found<2) off[found]=i;
 			found++;
 		}
 	}
+	return found;
+}
 
-	if (found>2) {
+static int locate_helper(const struct ImageHandle *ih, uint32_t addr)
+{
+	uint8_t needle[6]={0,0,0,0,0,0};
+	uint8_t mask[6]={0xff, 0xff, 0x00, 0x00, 0xff, 0xff};
+	int i,found=0;
+
+	addr+=Config.base_address;
+
+	needle[0] = addr&0xff;
+	needle[1] = (addr>>8)&0xff;
+	needle[4] = (addr>>16)&0xff;
+	needle[5] = (addr>>24)&0xff;
+
+	for(i=0;i+sizeof(needle)<ih->len;i+=2)
+	{
+		i=search_image(ih, i, needle, mask, sizeof(needle), 2);
+		if (i<0) break;
+		printf("ref #%d 0x%08X @0x%06x\n", ++found, addr, i);
+		hexdump(ih->d.u8+i-8, 8, " [");
+		hexdump(ih->d.u8+i, 2, "] ");
+		hexdump(ih->d.u8+i+2, 2, " [");
+		hexdump(ih->d.u8+i+4, 2, "] ");
+		hexdump(ih->d.u8+i+6, 8, "\n");
+	}
+
+	return 0;
+}
+
+static int FindCRCTab(const struct ImageHandle *ih)
+{
+	uint32_t off[2]={0,0};
+	int i, found=0;
+	uint32_t where=0;
+
+
+	// E6 F4 02 D8 E6 F5 81 00 A9 60 C0 62 5C 22
+	// E6 F4 6A E7 E6 F5 81 00 A9 60 C0 62 5C 22
+	// e6 f4 5a 77 e6 f5 82 00 a9 60 c0 62 5c 22
+
+	// E6 F4 A6 DF E6 F5 81 00 C0 C2 5C 22
+	// E6 F4 52 DB E6 f5 81 00 C0 C2 5C 22
+	// e6 f4 32 b5 e6 f5 81 00 c0 c2 5c 22
+	// e6 f4 28 dc e6 f5 81 00 c0 c2 5c 22
+
+	static const uint8_t
+	//                     LL   LL             HH   HH
+	needle0[]={0xe6,0xf4,0x00,0x00,0xe6,0xf5,0x80,0x00,0xa9,0x60,0xc0,0x62,0x5c,0x22},
+	  mask0[]={0xff,0xff,0x01,0x00,0xff,0xff,0xfc,0xff,0xff,0xff,0xff,0xff,0xff,0xff},
+
+	needle1[]={0xe6,0xf4,0x00,0x00,0xe6,0xf5,0x80,0x00,0xc0,0xc2,0x5c,0x22},
+	  mask1[]={0xff,0xff,0x01,0x00,0xff,0xff,0xfc,0xff,0xff,0xff,0xff,0xff};
+
+
+	printf(" Searching for CRC table(s)...");
+	DEBUG_FLUSH_CRC;
+
+	found=FindData(ih, "CRC table", needle0, mask0, sizeof(needle0), 1, 3, off, 2, &where);
+
+	if (found<1 || found>2)
+		found=FindData(ih, "CRC table", needle1, mask1, sizeof(needle1), 1, 3, off, 2, &where);
+
+	if (found<1 || found>2) {
 		printf("missing\n");
-		return -1;
-	}
-	if (found>0) {
-		Config.crctab[0]=off[0];
-		if (found>1)
-			Config.crctab[1]=off[1];
-		printf("OK\n");
-		return 0;
+	} else {
+		int temp=found;
+		found=0;
+		for (i=0;i<temp;i++) {
+			uint32_t crc0=le32toh(*((uint32_t *)(ih->d.u8+off[i])));
+			if(crc0!=0) {
+				printf("*** WARNING: ASM detect @0x%06x, CRC[0]=0x%08X in %s\n",
+					off[i], crc0, ih->filename);
+				continue;
+			}
+			Config.crctab[found++]=off[i];
+		}
 	}
 
-	printf("missing\n");
-	return -1;
+	if (found<1 || found>2) {
+		int temp = crc_table_fallback(ih, off);
+		printf(" Searching for CRC table(s) using fallback...");
+		if (temp<1 || temp>2) {
+			printf("UNDEFINED\n");
+			return -1;
+		}
+
+		for (i=0;i<found;i++) {
+			locate_helper(ih, off[i]);
+		}
+
+		printf("*** WARNING: ASM detect failed, fell back (found %d) in %s\n",
+			found, ih->filename);
+	}
+
+	printf("OK\n");
+	return 0;
 }
 
 static int DoCRCTab(struct ImageHandle *ih)
@@ -1795,7 +1900,6 @@ static int DoCRCTab(struct ImageHandle *ih)
 	assert(sizeof(letab)==sizeof(crc32_tab));
 
 	memcpy_to_le32(letab, crc32_tab, sizeof(letab));
-
 
 	for(i=0;i<2;i++) {
 		if(!Config.crctab[i]) continue;
@@ -1946,7 +2050,7 @@ static int FindMainCRCOffsets(const struct ImageHandle *ih)
 	uint32_t offset[MAX_CRC_OFFSETS];
 	//                                                        LL    LL                HH    HH
 	uint8_t needle[] = {0xF6, 0xF5, 0x00, 0x00, 0xE6, 0xF4, 0x00, 0x00, 0xE6, 0xF5, 0x80, 0x00, 0xDA, 0x00 /*, 0x00, 0x00, 0xe6, 0x00, 0x04, 0x02 */};
-	uint8_t   mask[] = {0xff, 0xff, 0x00, 0x00, 0xff, 0xff, 0x00, 0x00, 0xff, 0xff, 0xf0, 0xff, 0xff, 0xff /*, 0x00, 0x00, 0xff, 0xff, 0xff, 0xff */};
+	uint8_t   mask[] = {0xff, 0xff, 0x00, 0x00, 0xff, 0xff, 0x01, 0x00, 0xff, 0xff, 0xf0, 0xff, 0xff, 0xff /*, 0x00, 0x00, 0xff, 0xff, 0xff, 0xff */};
 
 	printf(" Searching for main data CRC offsets...");
 	DEBUG_FLUSH_CRC;
@@ -1992,7 +2096,7 @@ static int FindMainCSMOffsets(const struct ImageHandle *ih)
 	//                                             LL    LL                HH    HH
 	uint8_t needle0[] = {0xE1, 0x0C, 0xE6, 0xF4, 0x00, 0x00, 0xE6, 0xF5, 0x80, 0x00, 0xDA, 0x00 /*, 0xf0, 0xe1, 0x0c, 0xe6 */};
 	uint8_t needle1[] = {0x04, 0x00, 0xE6, 0xF4, 0x00, 0x00, 0xE6, 0xF5, 0x80, 0x00, 0xDA, 0x00 /*, 0xd8, 0x7e, 0xe6, 0x00 */};
-	uint8_t    mask[] = {0xff, 0xff, 0xff, 0xff, 0x00, 0x00, 0xff, 0xff, 0xf0, 0xff, 0xff, 0xff /*, 0xf0, 0xff, 0xff, 0xff */};
+	uint8_t    mask[] = {0xff, 0xff, 0xff, 0xff, 0x01, 0x00, 0xff, 0xff, 0xf0, 0xff, 0xff, 0xff /*, 0xf0, 0xff, 0xff, 0xff */};
 
 	printf(" Searching for main data checksum offsets...");
 	DEBUG_FLUSH_CRC;
