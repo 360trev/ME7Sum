@@ -49,11 +49,11 @@ uint8_t *load_file(const char *filename, size_t *filelen, struct strbuf *buf)
 	size_t size,bytesRead;
 
 	/* open file */
-	sbprintf(buf, "þ Opening '%s' file\n",filename);
-	if ((fp = (FILE *)fopen(filename, "rb")) == NULL){ sbprintf(buf, "\nCan't open file \"%s\".", filename); return(0); }
+	sbprintf(buf, "þ Opening '%s'\n",filename);
+	if ((fp = (FILE *)fopen(filename, "rb")) == NULL) { sbprintf(buf, "\nCan't open '%s'.\n", filename); return(0); }
 
 	/* get file length */
-	sbprintf(buf, "þ Getting length of '%s' file\n",filename);
+	sbprintf(buf, "þ Getting length of '%s'\n",filename);
 	fseek(fp, 0, SEEK_END);
 	size = ftell(fp);
 	fseek(fp, 0, SEEK_SET);

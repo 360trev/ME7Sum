@@ -368,7 +368,7 @@ int main(int argc, char **argv)
 	{
 		printf("Failed to open firmware file '%s'\n",input);
 		ErrorsFound++;
-		goto out;
+		return -1;
 	}
 
 	// sanity check: validate firmware file is at least 512kbytes length before proceeding.
