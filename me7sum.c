@@ -1742,6 +1742,11 @@ static int DoROMSYS(struct ImageHandle *ih)
 	struct ROMSYSDescriptor desc;
 	int result = 0;
 
+	if (ih->d.u16[0]==0) {
+		printf(" ** ERROR! First word is zero... corrupted bin? **\n");
+		ErrorsUncorrectable++;
+	}
+
 	memcpy_from_le32(&desc, ih->d.u8+Config.romsys, sizeof(desc));
 
 	DEBUG_ROMSYS("00 0x%08X 0x%08X 0x%08X 0x%08X\n",
