@@ -2393,10 +2393,10 @@ static int DoMainChecksum(struct ImageHandle *ih, uint32_t nOffset, uint32_t nCs
 		uint32_t temp;
 		volatile struct ChecksumPair *cs=
 			(struct ChecksumPair *)(ih->d.u8+nCsumAddr);
-		temp = cs->iv;
-		cs->iv = ~cs->v;	// save inv
+		temp = cs->iv;	// save inv
+		cs->iv = ~cs->v;
 		nCalcChksum2 = CalcChecksumBlk16(ih, &r[1]);
-		cs->iv = temp;		// restore inv
+		cs->iv = temp;	// restore inv
 	} else {
 		nCalcChksum2 = CalcChecksumBlk16(ih, &r[1]);
 	}
@@ -2578,10 +2578,10 @@ static int DoChecksumBlk(struct ImageHandle *ih, uint32_t nStartBlk, struct strb
 			uint32_t temp;
 			volatile struct ChecksumPair *cs=
 				(struct ChecksumPair *)(ih->d.u8+nCsumAddr);
-			temp = cs->iv;
-			cs->iv = ~cs->v;	// save inv
+			temp = cs->iv;	 // save inv
+			cs->iv = ~cs->v;
 			nCalcChksum = CalcChecksumBlk16(ih, &desc.r);
-			cs->iv = temp;		// restore inv
+			cs->iv = temp;	// restore inv
 		} else {
 			nCalcChksum = CalcChecksumBlk16(ih, &desc.r);
 		}
