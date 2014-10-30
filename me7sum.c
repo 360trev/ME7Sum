@@ -1766,9 +1766,9 @@ static int DoROMSYS(struct ImageHandle *ih)
 	DEBUG_ROMSYS("allparam first/last: 0x%08X, 0x%08X\n",
 		desc.all_param.start, desc.all_param.end);
 
-	DEBUG_ROMSYS("startup_sum 0x%08X\n", desc.startup_sum);
+	DEBUG_ROMSYS("startup_sum %08X\n", desc.startup_sum);
 
-	DEBUG_ROMSYS("program_pages_csum 0x%08X\n", desc.program_pages_csum);
+	DEBUG_ROMSYS("program_pages_csum %08X\n", desc.program_pages_csum);
 
 	result |= DoROMSYS_Startup(ih, &desc);
 	result |= DoROMSYS_ProgramPages(ih, &desc);
@@ -1817,7 +1817,7 @@ static int locate_helper(const struct ImageHandle *ih, uint32_t addr)
 	{
 		i=search_image(ih, i, needle, mask, sizeof(needle), 2);
 		if (i<0) break;
-		printf("ref #%d 0x%08X @0x%06x\n", ++found, addr, i);
+		printf("ref #%d %08X @0x%06x\n", ++found, addr, i);
 		hexdump(ih->d.u8+i-8, 8, " [");
 		hexdump(ih->d.u8+i, 2, "] ");
 		hexdump(ih->d.u8+i+2, 2, " [");
@@ -1869,7 +1869,7 @@ static int FindCRCTab(const struct ImageHandle *ih)
 		for (i=0;i<temp;i++) {
 			uint32_t crc0=le32toh(*((uint32_t *)(ih->d.u8+off[i])));
 			if(crc0!=0) {
-				printf("*** WARNING: ASM detect @0x%06x, CRC[0]=0x%08X in %s\n",
+				printf("*** WARNING: ASM detect @0x%06x, CRC[0]=%08X in %s\n",
 					off[i], crc0, ih->filename);
 				continue;
 			}
@@ -2345,6 +2345,7 @@ static int DoMainChecksum(struct ImageHandle *ih, uint32_t nOffset, uint32_t nCs
 	struct ChecksumPair csum;
 	uint32_t nCalcChksum;
 	uint32_t nCalcChksum2;
+	int inside=0;
 
 	printf(" ROM Checksum Block Offset Table @%05x [16 bytes]:\n",
 		Config.main_checksum_offset);
@@ -2363,7 +2364,7 @@ static int DoMainChecksum(struct ImageHandle *ih, uint32_t nOffset, uint32_t nCs
 
 	// block 1
 	nCalcChksum = CalcChecksumBlk16(ih, &r[0]);
-	printf(" 1) 0x%06X-0x%06X\n", r[0].start, r[0].end);
+	printf(" 1) 0x%06X-0x%06X CalcChk: %08X\n", r[0].start, r[0].end, nCalcChksum);
 
 	if (r[0].end + 1 != r[1].start)
 	{
@@ -2374,34 +2375,45 @@ static int DoMainChecksum(struct ImageHandle *ih, uint32_t nOffset, uint32_t nCs
 		//struct Range sr = {.start = 0x10000, .end = 0x1FFFF};
 	    ss = CalcChecksumBlk16(ih, &sr);
 		sc = crc32(0, ih->d.u8+sr.start, sr.end-sr.start+1);
-		printf("         0x%06X-0x%06X SKIPPED CalcChk: 0x%08X CalcCRC: 0x%08X\n",
+		printf("    0x%06X-0x%06X CalcChk: %08X CalcCRC: %08X SKIPPED\n",
 			sr.start, sr.end, ss, sc);
 	}
-
-	// block 2
-	nCalcChksum2= CalcChecksumBlk16(ih, &r[1]);
-	printf(" 2) 0x%06X-0x%06X\n", r[1].start, r[1].end);
-
-	nCalcChksum += nCalcChksum2;
 
 	// C16x processors are little endian
 	// copy from (le) buffer
 	memcpy_from_le32(&csum, ih->d.u8+nCsumAddr, sizeof(csum));
 
-	printf(" @%05x Chk: 0x%08X", Config.main_checksum_final, csum.v);
-	if(csum.v != ~csum.iv)
-	{
-		printf(" ~Chk: 0x%08X INV NOT OK", csum.iv);
-		errors++;
-	}
+	// block 2
+	/* test if checksum is inside block, if so, mark it */
+	if (nCsumAddr+8 >= r[1].start && nCsumAddr <= r[1].end) inside++;
 
-	printf(" CalcChk: 0x%08X", nCalcChksum);
+	if (inside && csum.iv != ~csum.v) {
+		// if csum inside and iv!=~v, pre-correct iv so v+iv cancels out
+		// properly
+		uint32_t temp;
+		volatile struct ChecksumPair *cs=
+			(struct ChecksumPair *)(ih->d.u8+nCsumAddr);
+		temp = cs->iv;
+		cs->iv = ~cs->v;	// save inv
+		nCalcChksum2 = CalcChecksumBlk16(ih, &r[1]);
+		cs->iv = temp;		// restore inv
+	} else {
+		nCalcChksum2 = CalcChecksumBlk16(ih, &r[1]);
+	}
+	printf(" 2) 0x%06X-0x%06X\n", r[1].start, r[1].end);
+
+	nCalcChksum += nCalcChksum2;
+
+	printf("    <%05x>  Chk: %08X", Config.main_checksum_final, csum.v);
+	printf(" CalcChk: %08X", nCalcChksum);
 	ChecksumsFound ++;
-	if(csum.v != nCalcChksum) { errors++; }
+	if (csum.v != nCalcChksum) { errors++; }
+
+	if (csum.iv != ~csum.v) { errors++; }
 
 	if(!errors)
 	{
-		printf("  Main program checksum OK\n");
+		printf(" OK%s\n", inside?" (i)":"");
 		return 0;
 	}
 
@@ -2410,6 +2422,14 @@ static int DoMainChecksum(struct ImageHandle *ih, uint32_t nOffset, uint32_t nCs
 	if(Config.readonly)
 	{
 		printf(" ** NOT OK **\n");
+		if (csum.iv!=~csum.v) {
+			printf(" %08X!=%08X, ChkInv: %08X ** NOT OK **\n",
+				csum.v, ~csum.iv, csum.iv);
+			if (inside) {
+				printf("*** WARNING! Checksum offset %x inside block 0x%x-0x%x!\n",
+					nCsumAddr, r[1].start, r[1].end);
+			}
+		}
 		return -1;
 	}
 
@@ -2508,8 +2528,9 @@ static int DoChecksumBlk(struct ImageHandle *ih, uint32_t nStartBlk, struct strb
 	// C16x processors are little endian
 	struct MultipointDescriptor desc;
 	struct MultipointDescriptor *pDesc;
-	uint32_t nCalcChksum;
+	uint32_t nCsumAddr, nCalcChksum;
 	int errors=0;
+	int inside=0;
 
 	sbprintf(buf, "<%x> ",nStartBlk);
 
@@ -2520,10 +2541,11 @@ static int DoChecksumBlk(struct ImageHandle *ih, uint32_t nStartBlk, struct strb
 		return -1;	// Uncorrectable Error
 	}
 
+	nCsumAddr = nStartBlk + offsetof(struct MultipointDescriptor, csum.v);
+
 	// C16x processors are little endian
 	// copy from (le) buffer into our descriptor
 	memcpy_from_le32(&desc, ih->d.u8+nStartBlk, sizeof(desc));
-
 	if (!bootrom) {
 		if (NormalizeRange(ih, &desc.r))
 		{
@@ -2540,33 +2562,41 @@ static int DoChecksumBlk(struct ImageHandle *ih, uint32_t nStartBlk, struct strb
 		return 1;	// end of blks
 	}
 
-	sbprintf(buf, "Chk: 0x%08X", desc.csum.v);
+	sbprintf(buf, "Chk: %08X", desc.csum.v);
 
-	if(desc.csum.v != ~desc.csum.iv)
-	{
-		sbprintf(buf, "  ~0x%08X INV NOT OK", desc.csum.iv);
-		errors++;
-	}
+	/* test if checksum is inside block, if so, mark it */
+	if (nCsumAddr+8 >= desc.r.start && nCsumAddr <= desc.r.end) inside++;
 
 	if (bootrom && ih->bootrom_whitelist) {
 		/* whitelisted */
 		nCalcChksum = desc.csum.v;
 		sbprintf(buf, " Boot: (whitelisted)");
 	} else {
-		// calc checksum
-		nCalcChksum = CalcChecksumBlk16(ih, &desc.r);
+		if (inside && desc.csum.iv != ~desc.csum.v) {
+			// if csum inside and iv!=~v, pre-correct iv so v+iv cancels out
+			// properly
+			uint32_t temp;
+			volatile struct ChecksumPair *cs=
+				(struct ChecksumPair *)(ih->d.u8+nCsumAddr);
+			temp = cs->iv;
+			cs->iv = ~cs->v;	// save inv
+			nCalcChksum = CalcChecksumBlk16(ih, &desc.r);
+			cs->iv = temp;		// restore inv
+		} else {
+			nCalcChksum = CalcChecksumBlk16(ih, &desc.r);
+		}
 
-		sbprintf(buf, " CalcChk: 0x%08X", nCalcChksum);
+		sbprintf(buf, " CalcChk: %08X", nCalcChksum);
 		ChecksumsFound ++;
 
-		if (desc.csum.v != nCalcChksum) {
-			errors++;
-		}
+		if (desc.csum.v != nCalcChksum) { errors++; }
 	}
+
+	if (desc.csum.iv != ~desc.csum.v) { errors++; }
 
 	if (!errors)
 	{
-		sbprintf(buf, " OK\n");
+		sbprintf(buf, " OK%s\n", inside?" (i)":"");
 		return bootrom?-2:0;
 	}
 
@@ -2575,6 +2605,14 @@ static int DoChecksumBlk(struct ImageHandle *ih, uint32_t nStartBlk, struct strb
 	if (Config.readonly)
 	{
 		sbprintf(buf, " ** NOT OK **\n");
+		if (desc.csum.iv != ~desc.csum.v) {
+			sbprintf(buf, "%26s%08X!=%08X, ChkInv: %08X ** NOT OK **\n",
+				"", desc.csum.v, ~desc.csum.iv, desc.csum.iv);
+			if (inside) {
+				sbprintf(buf, "*** WARNING! Checksum offset %x inside block 0x%x-0x%x!\n",
+					nCsumAddr, desc. r.start, desc.r.end);
+			}
+		}
 		return -1;
 	}
 
