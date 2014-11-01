@@ -2270,7 +2270,7 @@ static int DoMainCSMs(struct ImageHandle *ih)
 
 	else
 	{
-		printf("  Main data checksum OK\n");
+		printf(" OK\n");
 	}
 	return result;
 }
@@ -2400,12 +2400,14 @@ static int DoMainChecksum(struct ImageHandle *ih, uint32_t nOffset, uint32_t nCs
 	} else {
 		nCalcChksum2 = CalcChecksumBlk16(ih, &r[1]);
 	}
-	printf(" 2) 0x%06X-0x%06X\n", r[1].start, r[1].end);
 
 	nCalcChksum += nCalcChksum2;
 
-	printf("    <%05x>  Chk: %08X", Config.main_checksum_final, csum.v);
-	printf(" CalcChk: %08X", nCalcChksum);
+	printf(" 2) 0x%06X-0x%06X CalcChk: %08X\n", r[1].start, r[1].end,
+		nCalcChksum);
+
+	printf(" @%05x Chk: %08X CalcChk: %08X", Config.main_checksum_final,
+		csum.v, nCalcChksum);
 	ChecksumsFound ++;
 	if (csum.v != nCalcChksum) { errors++; }
 
