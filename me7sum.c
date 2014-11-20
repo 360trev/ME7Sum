@@ -285,7 +285,7 @@ int main(int argc, char **argv)
 	memset(&buf, 0, sizeof(buf));
 
 	// information about the tool
-	printf("ME7Tool (%s) [Management tool for Bosch ME7.x firmwares]\n",
+	printf("ME7Sum (%s) [Management tool for Bosch ME7.x firmwares]\n",
 		__GIT_VERSION);
 	printf("Inspiration from Andy Whittaker's tools and information.\n");
 	printf("Written by 360trev and nyet [BSD License Open Source].\n");
