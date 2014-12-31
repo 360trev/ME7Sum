@@ -79,6 +79,27 @@ struct MultipointDescriptor {
 	struct ChecksumPair     csum;
 };
 
+#if 0
+static int sbhexdump(struct strbuf *buf, const void *p, int len)
+{
+    int i=len;
+	int ret=0;
+	const uint8_t *ptr=p;
+    while(i--)
+		ret+=sbprintf(buf, "%02x%s", *ptr++, ((i&0xf)==0 && len>32)?"\n":i?" ":"");
+	return ret;
+}
+
+static int sbprintdesc(struct strbuf *buf, const struct MultipointDescriptor *d)
+{
+	int ret=sbprintf(buf, " ");
+	ret+=sbhexdump(buf, d, sizeof(*d));
+	ret+=sbprintf(buf, "\n");
+	ret+=sbprintf(buf, " %x-%x %x %x\n", d->r.start, d->r.end, d->csum.v, d->csum.iv);
+	return ret;
+}
+#endif
+
 #define MAX_CRC_BLKS 4
 #define MD5_MAX_BLKS 4
 // main firmware checksum validation
@@ -1315,17 +1336,18 @@ static int rsa_block_pad(uint8_t *blk, const uint8_t *data, int len)
 static int rsa_block_unpad(uint8_t *data, int len, const uint8_t *blk)
 {
 	int i;
-	if(blk[0]!=0 || blk[1]!=1) {
-		if (Verbose)
-			printf("bad prefix! %x %x\n", blk[0], blk[1]);
-		return -1;
+
+	/* expect 00 01 prefix */
+	if(blk[0]!=0x00 || blk[1]!=0x01) {
+		if (Verbose>1)
+			printf("bad prefix [%x %x]!\n", blk[0], blk[1]);
+		return 0;
 	}
 
 	for(i=2;blk[i] && i<RSA_BLOCK_SIZE-len;i++);
 
 	if (len+i!=RSA_BLOCK_SIZE-1) {
-		if (Verbose)
-			printf("%d+%d!=%d-1\n", len, i, RSA_BLOCK_SIZE);
+		printf("len mismatch: %d+%d!=%d-1\n", len, i, RSA_BLOCK_SIZE);
 		return -1;
 	}
 
@@ -1468,6 +1490,7 @@ static int DoRSA(struct ImageHandle *ih)
 	int i;
 
 	memset(md5, 0, sizeof(md5));
+	memset(dmd5, 0, sizeof(dmd5));
 	memset(calc_md5, 0, sizeof(calc_md5));
 
 	mpz_init(kp.n);
@@ -1487,9 +1510,9 @@ static int DoRSA(struct ImageHandle *ih)
 
 	if (Verbose>1) {
 		printf("modulus:\n");
-		hexdump(ih->d.u8+Config.rsa.n, 128, "\n");
+		hexdump(ih->d.u8+Config.rsa.n, RSA_BLOCK_SIZE, "\n");
 		printf("signature:\n");
-		hexdump(ih->d.u8+Config.rsa.s, 128, "\n");
+		hexdump(ih->d.u8+Config.rsa.s, RSA_BLOCK_SIZE, "\n");
 	}
 
 	memset(buf, 0, sizeof(buf));
@@ -1507,13 +1530,10 @@ static int DoRSA(struct ImageHandle *ih)
 
 	if (Verbose>1) {
 		printf("sig->padded MD5:\n");
-		hexdump(buf, 128, "\n");
+		hexdump(buf, RSA_BLOCK_SIZE, "\n");
 		printf("defsig->padded MD5:\n");
-		hexdump(dbuf, 128, "\n");
+		hexdump(dbuf, RSA_BLOCK_SIZE, "\n");
 	}
-
-	rsa_block_unpad(md5, 16, buf);
-	rsa_block_unpad(dmd5, 16, dbuf);
 
 	ChecksumsFound ++;
 
@@ -1530,10 +1550,20 @@ static int DoRSA(struct ImageHandle *ih)
 
 	MD5_Final(calc_md5, &ctx);
 
-	//printf("DEncrMD5: ");
-	//hexdump(dmd5, 16, "\n");
+	/*
+	printf("DEncrMD5: ");
+	if (rsa_block_unpad(dmd5, 16, dbuf))
+		ErrorsUncorrectable++;
+	else
+		hexdump(dmd5, 16, "\n");
+	*/
+
 	printf(" EncrMD5: ");
-	hexdump(md5, 16, "\n");
+	if (rsa_block_unpad(md5, 16, buf))
+		ErrorsUncorrectable++;
+	else
+		hexdump(md5, 16, "\n");
+
 	printf(" CalcMD5: ");
 	hexdump(calc_md5, 16, "\n");
 
@@ -2555,6 +2585,13 @@ static int DoChecksumBlk(struct ImageHandle *ih, uint32_t nStartBlk, struct strb
 			return -1;
 		}
 	}
+
+	/*
+	if (Verbose>2) {
+		sbprintf(buf, "\n");
+		sbprintdesc(buf, &desc);
+	}
+	*/
 
 	sbprintf(buf, " 0x%06X-0x%06X ", desc.r.start, desc.r.end);
 
