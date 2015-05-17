@@ -43,6 +43,14 @@ be 100% sure.
 
 Never use ME7Sum on a file that you your self did not write.
 
+** Some files may require ME7Sum to be run on them iteratively **
+
+https://github.com/nyetwurk/ME7Sum/issues/7
+
+If ME7Check fails on a ME7Sum fixed file, please post or email me the file. You
+may be able to get all the checksums properly fixed by re-running ME7Sum on its
+own outputted file.
+
 ** RSA signature support is experimental, and may have bugs! **
 
 ME7Check should not fail on RSA corrected bins. If it does, please email the
