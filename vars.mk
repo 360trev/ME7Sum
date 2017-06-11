@@ -10,12 +10,11 @@ SYS	:= $(shell gcc -dumpmachine)
 
 ifneq (, $(findstring mingw, $(SYS)))
 EXE_EXT = .exe
-CC	= i686-pc-mingw32-gcc 
 else ifneq (, $(findstring cygwin, $(SYS)))
 EXE_EXT = .exe
-CC	= i686-pc-cygwin-gcc 
-else
-CC	= gcc
 endif
+
+CC	= $(SYS)-gcc
+LD	= $(SYS)-gcc
 
 SRC     = $(notdir $(foreach dir, ., $(wildcard $(dir)/*.c)))
