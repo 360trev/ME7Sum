@@ -20,7 +20,7 @@ $(LIB): $(OBJ)
 
 $(EXE): $(OBJ)   # $(EXE) is dependent on all of the files in $(OBJ) to exist
 	$(ECHO) Linking $@ ...
-	$(DEBUG)$(CC) $(OBJ) $(LDFLAGS) $(addprefix -l,$(LIBS)) -o $@
+	$(DEBUG)$(LD) $(OBJ) $(LDFLAGS) $(addprefix -l,$(LIBS)) -o $@
 	$(ECHO) Done
 
 .PHONY : clean   # .PHONY ignores files named clean
