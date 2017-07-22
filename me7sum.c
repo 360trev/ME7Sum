@@ -576,6 +576,11 @@ int main(int argc, char **argv)
 
 	DEBUG_EXIT_CRC;
 
+	if(output && Config.romsys)
+	{
+		printf("\nStep #%da: Rechecking ROMSYS..\n", Step);
+		DoROMSYS(&ih);
+	}
 
 	//
 	// Main program checksums
@@ -1091,8 +1096,8 @@ static int dump_string_desc(const struct ImageHandle *ih, const struct string_de
 	if (ret<0) return -1;
 
 	if (ii.len) {
-		snprintf(buf, ii.len, "%s", ih->d.s+ii.off);
-		printf("'%s'", buf);
+		snprintf(buf, ii.len+1, "%s", ih->d.s+ii.off);
+		printf("%d: '%s'\n", ret, buf);
 	}
 
 	return 0;
@@ -1142,6 +1147,12 @@ static int FindECUID(const struct ImageHandle *ih)
 			d1=(const struct string_desc *)(ih->d.u8+offset[0]);
 			getInfoItem(ih, &InfoConfig.hw_number, d0+2);
 		}
+		/*
+		dump_string_desc(ih, d0+4);
+		dump_string_desc(ih, d0+10);
+		dump_string_desc(ih, d0+11);
+		dump_string_desc(ih, d0+19);
+		*/
 		getInfoItem(ih, &InfoConfig.sw_number, d0+4);
 		getInfoItem(ih, &InfoConfig.part_number, d0+10);
 		getInfoItem(ih, &InfoConfig.sw_version, d0+11);
@@ -1618,14 +1629,14 @@ static int DoROMSYS_Startup(struct ImageHandle *ih, const struct ROMSYSDescripto
 {
 	uint16_t *r16[2];
 	uint32_t nCalcStartupSum;
+	int off = Config.romsys + offsetof(struct ROMSYSDescriptor, startup_sum);
 
 	r16[0]=(uint16_t *)(ih->d.u8 + 0x8000);
 	r16[1]=(uint16_t *)(ih->d.u8 + 0xFFFE);
 	nCalcStartupSum = le16toh(*r16[0])+le16toh(*r16[1]);
 
 	printf(" Startup section: word[0x008000]+word[0x00FFFE]\n");
-	printf(" @%06x Add=0x%06X CalcAdd=0x%06X",
-		Config.romsys + (int)offsetof(struct ROMSYSDescriptor, startup_sum),
+	printf(" @%06x Add=0x%06X CalcAdd=0x%06X", off,
 		nCalcStartupSum, desc->startup_sum);
 
 	ChecksumsFound ++;
@@ -1640,8 +1651,7 @@ static int DoROMSYS_Startup(struct ImageHandle *ih, const struct ROMSYSDescripto
 		}
 		else
 		{
-			uint16_t *p16 = (uint16_t *)(ih->d.u8 + Config.romsys +
-				offsetof(struct ROMSYSDescriptor, startup_sum));
+			uint16_t *p16 = (uint16_t *)(ih->d.u8 + off);
 			*p16=le16toh(nCalcStartupSum);
 			ErrorsCorrected++;
 			printf(" ** FIXED **\n");
@@ -1675,6 +1685,7 @@ static int DoROMSYS_ProgramPages(struct ImageHandle *ih, const struct ROMSYSDesc
 {
 	uint32_t nCalcProgramPagesSum;
 	struct Range r;
+	int off = Config.romsys + offsetof(struct ROMSYSDescriptor, program_pages_csum);
 
 	printf(" Program pages: 8k page first+last in 0x0000-0xFFFF and 0x20000-0x%X\n",
 		(int)ih->len-1);
@@ -1685,9 +1696,8 @@ static int DoROMSYS_ProgramPages(struct ImageHandle *ih, const struct ROMSYSDesc
 	r.start=0x20000; r.end=ih->len-1;
 	nCalcProgramPagesSum+=ProgramPageSum(ih, &r);
 
-	printf(" @%06x Add=0x%06X CalcAdd=0x%06X",
-		Config.romsys + (int)offsetof(struct ROMSYSDescriptor, program_pages_csum),
-		nCalcProgramPagesSum, desc->program_pages_csum);
+	printf(" @%06x Add=0x%06X CalcAdd=0x%06X", off, nCalcProgramPagesSum,
+		desc->program_pages_csum);
 
 	ChecksumsFound ++;
 
@@ -1701,8 +1711,7 @@ static int DoROMSYS_ProgramPages(struct ImageHandle *ih, const struct ROMSYSDesc
 		}
 		else
 		{
-			uint32_t *p32 = (uint32_t *)(ih->d.u8 + Config.romsys +
-				offsetof(struct ROMSYSDescriptor, program_pages_csum));
+			uint32_t *p32 = (uint32_t *)(ih->d.u8 + off);
 			*p32=le32toh(nCalcProgramPagesSum);
 			ErrorsCorrected++;
 			printf(" ** FIXED **\n");
@@ -1720,6 +1729,7 @@ static int DoROMSYS_ParamPage(struct ImageHandle *ih, struct ROMSYSDescriptor *d
 {
 	uint16_t *r16[2];
 	uint32_t *p32;
+	int off;
 	uint32_t nAllParamSum, nCalcAllParamSum;
 
 	if(desc->all_param_sum_p<Config.base_address ||
@@ -1728,7 +1738,8 @@ static int DoROMSYS_ParamPage(struct ImageHandle *ih, struct ROMSYSDescriptor *d
 		return -1;
 	}
 
-	p32 = (uint32_t *)(ih->d.u8 + desc->all_param_sum_p-Config.base_address);
+	off = desc->all_param_sum_p-Config.base_address;
+	p32 = (uint32_t *)(ih->d.u8 + off);
 	nAllParamSum=le32toh(*p32);
 
 	NormalizeRange(ih, &desc->all_param);
@@ -1738,8 +1749,7 @@ static int DoROMSYS_ParamPage(struct ImageHandle *ih, struct ROMSYSDescriptor *d
 
 	printf(" All param page: word[0x%06X]+word[0x%06X]\n",
 		desc->all_param.start, desc->all_param.end);
-	printf(" @%06x Add=0x%06X CalcAdd=0x%06X",
-		desc->all_param_sum_p-Config.base_address,
+	printf(" @%06x Add=0x%06X CalcAdd=0x%06X", off,
 		nAllParamSum, nCalcAllParamSum);
 
 	ChecksumsFound ++;
