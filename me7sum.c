@@ -669,10 +669,13 @@ int main(int argc, char **argv)
 					&buf, bootrom);
 				if (buf.pbuf) {
 					if (iTemp<3 || result<0 || Verbose>0 || iTemp>MAX_MP_BLOCK_LEN-4)
+					{
 						printf("%s", buf.pbuf);
+						printed_dots=0;
+					}
 					else if (!printed_dots) {
 						printed_dots=1;
-						printf(" .........\n");
+						printf(" ..........\n");
 					}
 					free (buf.pbuf);
 				}
