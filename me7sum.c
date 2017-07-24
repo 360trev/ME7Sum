@@ -40,6 +40,7 @@
 #include "crc32.h"
 #include "str.h"
 #include "utils.h"
+#include "range.h"
 #include "md5.h"
 #include "rsa.h"
 
@@ -64,11 +65,6 @@
 #endif
 
 // structures
-struct Range {
-	uint32_t	start;
-	uint32_t	end;
-};
-
 struct ChecksumPair {
 	uint32_t	v;	// value
 	uint32_t	iv;	// inverse value
@@ -138,6 +134,7 @@ struct info_config {
 };
 
 // globals
+static FILE *ReportFile = NULL;
 static struct rom_config Config;
 static struct info_config InfoConfig;
 #ifdef DEBUG_YES
@@ -191,12 +188,12 @@ static InfoListItem romInfo[] = {
 	{ NULL,END_LIST,NULL,NULL,NULL}
 };
 
-
 static int FindRomInfo(const struct ImageHandle *ih);
 static int DoRomInfo(const struct ImageHandle *ih, struct section *osconfig);
 
 static int FindROMSYS(struct ImageHandle *ih);
 static int DoROMSYS(struct ImageHandle *ih);
+static int DoROMSYS_ProgramPages(struct ImageHandle *ih);
 
 static int FindRSAOffsets(struct ImageHandle *ih);
 static int FindMD5Ranges(struct ImageHandle *ih);
@@ -214,7 +211,7 @@ static int DoMainCSMs(struct ImageHandle *ih);
 
 static int FindMainProgramOffset(const struct ImageHandle *ih);
 static int FindMainProgramFinal(const struct ImageHandle *ih);
-static int DoMainChecksum(struct ImageHandle *ih, uint32_t nOffset, uint32_t nCsumAddr);
+static int DoMainChecksum(struct ImageHandle *ih);
 
 static int FindChecksumBlks(const struct ImageHandle *ih, int which);
 static int DoChecksumBlk(struct ImageHandle *ih, uint32_t nStartBlk, struct strbuf *buf, int bootrom);
@@ -222,7 +219,7 @@ static int DoChecksumBlk(struct ImageHandle *ih, uint32_t nStartBlk, struct strb
 static void usage(const char *prog)
 {
 	printf("Usage: %s [-v] [-i <config.ini>] <inrom.bin> [outrom.bin]\n", prog);
-	printf("       %s [-v] [-i <config.ini>] -s <inrom.bin>\n", prog);
+	printf("       %s [-v] [-i <config.ini>] [-r <report.txt>] -s <inrom.bin>\n", prog);
 	exit(-1);
 }
 
@@ -296,6 +293,7 @@ int main(int argc, char **argv)
 	int summary=0;
 	char *prog=argv[0];
 	char *inifile=NULL;
+	char *reportfile=NULL;
 	char *input=NULL;
 	char *output=NULL;
 	int i, c;
@@ -313,7 +311,7 @@ int main(int argc, char **argv)
 
 	opterr=0;
 
-	while ((c = getopt(argc, argv, "qsvi:")) != -1)
+	while ((c = getopt(argc, argv, "qsvi:r:")) != -1)
 	{
 		switch (c)
 		{
@@ -328,6 +326,9 @@ int main(int argc, char **argv)
 				break;
 			case 'i':
 				inifile=optarg;
+				break;
+			case 'r':
+				reportfile=optarg;
 				break;
 			case '?':
 				if (optopt == 'i')
@@ -362,6 +363,12 @@ int main(int argc, char **argv)
 		return -1;
 	}
 
+	if (reportfile && output) {
+		fprintf(stderr, "-r cannot be used with output file\n");
+		usage(prog);
+		return -1;
+	}
+
 	if (inifile)
 	{
 		printf("Attempting to open firmware config file '%s'\n",inifile);
@@ -369,7 +376,15 @@ int main(int argc, char **argv)
 		osconfig = read_properties(inifile);
 		if(osconfig == NULL)
 		{
-			printf("failed to open config file\n");
+			fprintf(stderr, "failed to open ini file %s\n", inifile);
+			return -1;
+		}
+	}
+
+	if (reportfile) {
+		ReportFile = fopen(reportfile, "w");
+		if (!ReportFile) {
+			fprintf(stderr, "failed to open report file %s: %s\n", reportfile, strerror(errno));
 			return -1;
 		}
 	}
@@ -576,10 +591,15 @@ int main(int argc, char **argv)
 
 	DEBUG_EXIT_CRC;
 
-	if(output && Config.romsys)
+	if(Config.romsys)
 	{
-		printf("\nStep #%da: Rechecking ROMSYS..\n", Step);
-		DoROMSYS(&ih);
+		printf("\nStep #%d: ROMSYS Program Pages\n", ++Step);
+		DoROMSYS_ProgramPages(&ih);
+	}
+	else
+	{
+		printf("Step #%d: ERROR! Skipping ROMSYS Program Pages.. UNDEFINED\n", Step);
+		ErrorsUncorrectable++;
 	}
 
 	//
@@ -598,7 +618,8 @@ int main(int argc, char **argv)
 
 	if (Config.main_checksum_offset && Config.main_checksum_final)
 	{
-		DoMainChecksum(&ih, Config.main_checksum_offset, Config.main_checksum_final);
+		//DoMainChecksum(&ih, Config.main_checksum_offset, Config.main_checksum_final);
+		DoMainChecksum(&ih);
 	}
 	else
 	{
@@ -625,6 +646,7 @@ int main(int argc, char **argv)
 		if(Config.multipoint_block_start[i])
 		{
 			int bootrom=0;
+			int printed_dots=0;
 
 #ifdef CHECK_BOOTROM_MP
 			/* Only check for whitelist in main multipoint block */
@@ -646,7 +668,12 @@ int main(int argc, char **argv)
 					Config.multipoint_block_start[i]+(Config.multipoint_desc_len*iTemp),
 					&buf, bootrom);
 				if (buf.pbuf) {
-					if (iTemp<4 || result<0 || Verbose>0) printf("%s", buf.pbuf);
+					if (iTemp<3 || result<0 || Verbose>0 || iTemp>MAX_MP_BLOCK_LEN-4)
+						printf("%s", buf.pbuf);
+					else if (!printed_dots) {
+						printed_dots=1;
+						printf(" .........\n");
+					}
 					free (buf.pbuf);
 				}
 
@@ -665,6 +692,14 @@ int main(int argc, char **argv)
 
 	DEBUG_EXIT_MULTIPOINT;
 
+	/* if (!Config.readonly) */ {
+		int errs;
+		printf("\nStep #%d: Looking for rechecks ..\n", ++Step);
+		if ((errs=ProcessRecordDeps())) {
+			printf("\n*** WARNING! Unsatisfied rechecks. You may have to rerun ME7Sum on this file!\n");
+			ErrorsFound+=errs;
+		}
+	}
 
 	//
 	// All done!
@@ -712,6 +747,13 @@ out:
 	} else {
 		printf("\n*** DONE! %d error(s) in %s! ***\n", ErrorsFound, input);
 	}
+
+	if (ReportFile) {
+		PrintAllRecords(ReportFile);
+		fclose(ReportFile);
+	}
+
+	FreeAllRecords();
 
 	return 0;
 }
@@ -1500,6 +1542,8 @@ static int DoRSA(struct ImageHandle *ih)
 	MD5_CTX ctx;
 	int i;
 
+	struct ReportRecord *rr = CreateRecord("RSA", Config.rsa.s, RSA_BLOCK_SIZE);
+
 	memset(md5, 0, sizeof(md5));
 	memset(dmd5, 0, sizeof(dmd5));
 	memset(calc_md5, 0, sizeof(calc_md5));
@@ -1552,6 +1596,7 @@ static int DoRSA(struct ImageHandle *ih)
 	for(i=0;i<MD5_MAX_BLKS;i++) {
 		int len=Config.rsa.md5[i].end-Config.rsa.md5[i].start+1;
 		if (len>0) {
+			AddRange(rr, Config.rsa.md5+i);
 			printf(" %d) 0x%08X-0x%08X\n", i+1,
 				Config.rsa.md5[i].start,
 				Config.rsa.md5[i].end);
@@ -1631,12 +1676,16 @@ static int DoROMSYS_Startup(struct ImageHandle *ih, const struct ROMSYSDescripto
 	uint32_t nCalcStartupSum;
 	int off = Config.romsys + offsetof(struct ROMSYSDescriptor, startup_sum);
 
+	struct ReportRecord *rr = CreateRecord("ROMSYS Startup", off, 3);
+	AddRangeStartLength(rr, 0x8000, 2);
+	AddRangeStartLength(rr, 0xFFFE, 2);
+
 	r16[0]=(uint16_t *)(ih->d.u8 + 0x8000);
 	r16[1]=(uint16_t *)(ih->d.u8 + 0xFFFE);
 	nCalcStartupSum = le16toh(*r16[0])+le16toh(*r16[1]);
 
 	printf(" Startup section: word[0x008000]+word[0x00FFFE]\n");
-	printf(" @%06x Add=0x%06X CalcAdd=0x%06X", off,
+	printf(" @%05x Add=0x%08X CalcAdd=0x%08X", off,
 		nCalcStartupSum, desc->startup_sum);
 
 	ChecksumsFound ++;
@@ -1665,14 +1714,16 @@ static int DoROMSYS_Startup(struct ImageHandle *ih, const struct ROMSYSDescripto
 	return 0;
 }
 
-static uint32_t ProgramPageSum(struct ImageHandle *ih, const struct Range *r)
+static uint32_t ProgramPageSum(struct ImageHandle *ih, const struct Range *r, struct ReportRecord *rr)
 {
 	uint32_t sum=0;
 	int addr;
 	for(addr=r->start;addr<r->end;addr+=8*1024) {
 		uint16_t *p16[2];
 		p16[0]=(uint16_t *)(ih->d.u8+addr);			/* first word of page */
+		AddRangeStartLength(rr, addr, 2);
 		p16[1]=(uint16_t *)(ih->d.u8+addr+8*1024-2);	/* last word of page */
+		AddRangeStartLength(rr, addr+8*1024-2, 2);
 		if (Verbose>4)
 			printf("      word[0x%06X]+word[0x%06X]\n",
 				addr, addr+8*1024-2);
@@ -1681,27 +1732,29 @@ static uint32_t ProgramPageSum(struct ImageHandle *ih, const struct Range *r)
 	return sum;
 }
 
-static int DoROMSYS_ProgramPages(struct ImageHandle *ih, const struct ROMSYSDescriptor *desc)
+static int DoROMSYS_ProgramPages(struct ImageHandle *ih)
 {
 	uint32_t nCalcProgramPagesSum;
 	struct Range r;
 	int off = Config.romsys + offsetof(struct ROMSYSDescriptor, program_pages_csum);
+	uint32_t *p32 = (uint32_t *)(ih->d.u8 + off);
 
 	printf(" Program pages: 8k page first+last in 0x0000-0xFFFF and 0x20000-0x%X\n",
 		(int)ih->len-1);
 
+	struct ReportRecord *rr = CreateRecord("ROMSYS ProgramPages", off, 4);
+
 	r.start=0x00000; r.end=0x0FFFF;
-	nCalcProgramPagesSum=ProgramPageSum(ih, &r);
+	nCalcProgramPagesSum=ProgramPageSum(ih, &r, rr);
 
 	r.start=0x20000; r.end=ih->len-1;
-	nCalcProgramPagesSum+=ProgramPageSum(ih, &r);
+	nCalcProgramPagesSum+=ProgramPageSum(ih, &r, rr);
 
-	printf(" @%06x Add=0x%06X CalcAdd=0x%06X", off, nCalcProgramPagesSum,
-		desc->program_pages_csum);
+	printf(" @%06x Add=0x%06X CalcAdd=0x%06X", off, nCalcProgramPagesSum, *p32);
 
 	ChecksumsFound ++;
 
-	if (nCalcProgramPagesSum != desc->program_pages_csum)
+	if (nCalcProgramPagesSum != *p32)
 	{
 		ErrorsFound++;
 		if (Config.readonly)
@@ -1711,7 +1764,6 @@ static int DoROMSYS_ProgramPages(struct ImageHandle *ih, const struct ROMSYSDesc
 		}
 		else
 		{
-			uint32_t *p32 = (uint32_t *)(ih->d.u8 + off);
 			*p32=le32toh(nCalcProgramPagesSum);
 			ErrorsCorrected++;
 			printf(" ** FIXED **\n");
@@ -1732,6 +1784,8 @@ static int DoROMSYS_ParamPage(struct ImageHandle *ih, struct ROMSYSDescriptor *d
 	int off;
 	uint32_t nAllParamSum, nCalcAllParamSum;
 
+	struct ReportRecord *rr;
+
 	if(desc->all_param_sum_p<Config.base_address ||
 		desc->all_param_sum_p-Config.base_address>=ih->len) {
 		printf(" ERROR: INVALID ADDR 0x%x\n", desc->all_param_sum_p);
@@ -1739,10 +1793,16 @@ static int DoROMSYS_ParamPage(struct ImageHandle *ih, struct ROMSYSDescriptor *d
 	}
 
 	off = desc->all_param_sum_p-Config.base_address;
+	rr = CreateRecord("ROMSYS ParamPage", off, 4);
+
 	p32 = (uint32_t *)(ih->d.u8 + off);
 	nAllParamSum=le32toh(*p32);
 
 	NormalizeRange(ih, &desc->all_param);
+
+	AddRangeStartLength(rr, desc->all_param.start, 2);
+	AddRangeStartLength(rr, desc->all_param.end, 2);
+
 	r16[0]=(uint16_t *)(ih->d.u8 + desc->all_param.start);
 	r16[1]=(uint16_t *)(ih->d.u8 + desc->all_param.end);
 	nCalcAllParamSum = le16toh(*r16[0])+le16toh(*r16[1]);
@@ -1811,7 +1871,6 @@ static int DoROMSYS(struct ImageHandle *ih)
 	DEBUG_ROMSYS("program_pages_csum %08X\n", desc.program_pages_csum);
 
 	result |= DoROMSYS_Startup(ih, &desc);
-	result |= DoROMSYS_ProgramPages(ih, &desc);
 	result |= DoROMSYS_ParamPage(ih, &desc);
 
 	return result;
@@ -2195,6 +2254,9 @@ static int DoMainCRCs(struct ImageHandle *ih)
 			}
 			else if (nCRCAddr)
 			{
+				struct ReportRecord *rr = CreateRecord("Main CRC", nCRCAddr, 3);
+				AddRangeStartLength(rr, nStart, nLen);
+
 				/* possibly unaligned, so we cant do tricks wtih ih->d.u32 */
 				p32=(uint32_t *)(ih->d.u8 + nCRCAddr);
 				nCRC=le32toh(*p32);
@@ -2245,6 +2307,7 @@ static int DoMainCSMs(struct ImageHandle *ih)
 	uint32_t nCSMAddr = Config.csm_offset;
 	uint32_t *p32;
 	uint32_t nCSM, nCSMinv;
+	struct ReportRecord *rr;
 
 	if (nCSMAddr+4>ih->len)
 	{
@@ -2258,11 +2321,13 @@ static int DoMainCSMs(struct ImageHandle *ih)
 	nCSMinv = le32toh(p32[1]);
 
 	printf(" Main Checksums:\n");
+	rr = CreateRecord("Main Checksums", nCSMAddr, 3);
 
 	for (i=1; i<5; i++)
 	{
 		if(Config.crc[i].r.start && Config.crc[i].r.end)
 		{
+			AddRange(rr, &Config.crc[i].r);
 			printf(" %d) 0x%06X-0x%06X", i,
 				Config.crc[i].r.start, Config.crc[i].r.end);
 
@@ -2378,21 +2443,24 @@ static int FindMainProgramFinal(const struct ImageHandle *ih)
 //
 // Reads the main checksum for the whole ROM
 //
-static int DoMainChecksum(struct ImageHandle *ih, uint32_t nOffset, uint32_t nCsumAddr)
+static int DoMainChecksum(struct ImageHandle *ih)
 {
 	int errors=0;
 	struct Range r[2];
 	struct ChecksumPair csum;
+	uint32_t nCsumAddr = Config.main_checksum_final;
 	uint32_t nCalcChksum;
 	uint32_t nCalcChksum2;
 	int inside=0;
+
+	struct ReportRecord *rr = CreateRecord("Main Program Checksum", nCsumAddr, 8);
 
 	printf(" ROM Checksum Block Offset Table @%05x [16 bytes]:\n",
 		Config.main_checksum_offset);
 
 	// C16x processors are little endian
 	// copy from (le) buffer into our descriptor
-	memcpy_from_le32(r, ih->d.u8+nOffset, sizeof(r));
+	memcpy_from_le32(r, ih->d.u8+Config.main_checksum_offset, sizeof(r));
 
 	if (NormalizeRange(ih, r) || NormalizeRange(ih, r+1) ||
 	    r[0].start==0xffffffff || r[1].start==0xffffffff)
@@ -2410,6 +2478,7 @@ static int DoMainChecksum(struct ImageHandle *ih, uint32_t nOffset, uint32_t nCs
 	{
 		struct Range sr;
 		uint32_t ss, sc;
+		AddRange(rr, &sr);
 		sr.start = r[0].end+1;
 		sr.end = r[1].start-1;
 		//struct Range sr = {.start = 0x10000, .end = 0x1FFFF};
@@ -2427,6 +2496,7 @@ static int DoMainChecksum(struct ImageHandle *ih, uint32_t nOffset, uint32_t nCs
 	/* test if checksum is inside block, if so, mark it */
 	if (nCsumAddr+8 >= r[1].start && nCsumAddr <= r[1].end) inside++;
 
+	AddRange(rr, &r[1]);
 	if (inside && csum.iv != ~csum.v) {
 		// if csum inside and iv!=~v, pre-correct iv so v+iv cancels out
 		// properly
@@ -2446,8 +2516,7 @@ static int DoMainChecksum(struct ImageHandle *ih, uint32_t nOffset, uint32_t nCs
 	printf(" 2) 0x%06X-0x%06X CalcChk: %08X\n", r[1].start, r[1].end,
 		nCalcChksum);
 
-	printf(" @%05x Chk: %08X CalcChk: %08X", Config.main_checksum_final,
-		csum.v, nCalcChksum);
+	printf(" @%05x Chk: %08X CalcChk: %08X", nCsumAddr, csum.v, nCalcChksum);
 	ChecksumsFound ++;
 	if (csum.v != nCalcChksum) { errors++; }
 
@@ -2559,6 +2628,43 @@ static int FindChecksumBlks(const struct ImageHandle *ih, int which)
 	return -1;
 }
 
+static int MP_callback(void *data, struct ReportRecord *rr)
+{
+	struct ChecksumPair *pcsum, csum;
+	struct ImageHandle *ih = data;
+	uint32_t nCalcChksum = 0;
+	struct RangeList *rl;
+	struct Range full={0xffffffff,0};
+
+	/* assume we already corrected v vs iv */
+	list_for_each_entry(rl, &rr->data.list, list) {
+		if (rl->r.start<full.start) full.start=rl->r.start;
+		if (rl->r.end>full.end) full.end=rl->r.end;
+		nCalcChksum += CalcChecksumBlk16(ih, &rl->r);
+	}
+
+	pcsum=(struct ChecksumPair *)(ih->d.u8+rr->checksum.start);
+	memcpy_from_le32(&csum, pcsum, sizeof(csum));
+	printf("    <%x>  0x%06X-0x%06X Chk: %08X CalcChk: %08X",
+		rr->checksum.start-8, full.start, full.end, csum.v, nCalcChksum);
+	if (csum.v != nCalcChksum) {
+		ErrorsFound++;
+		csum.v = nCalcChksum;
+		csum.iv = ~nCalcChksum;
+		if (Config.readonly) {
+			printf(" ** NOT OK ** (recheck)\n");
+		} else {
+			memcpy_to_le32(pcsum, &csum, sizeof(csum));
+			ErrorsCorrected++;
+			printf(" ** FIXED ** (recheck)\n");
+		}
+	} else {
+		printf(" OK (recheck)\n");
+	}
+
+	return 0;
+}
+
 // Reads the individual checksum blocks that start at nStartBlk
 // -2 for ignored bootrom block
 // -1 for error
@@ -2574,7 +2680,7 @@ static int DoChecksumBlk(struct ImageHandle *ih, uint32_t nStartBlk, struct strb
 	int errors=0;
 	int inside=0;
 
-	sbprintf(buf, "<%x> ",nStartBlk);
+	sbprintf(buf, "<%05x> ", nStartBlk);
 
 	if(nStartBlk + sizeof(desc) >= ih->len)
 	{
@@ -2621,6 +2727,10 @@ static int DoChecksumBlk(struct ImageHandle *ih, uint32_t nStartBlk, struct strb
 		nCalcChksum = desc.csum.v;
 		sbprintf(buf, " Boot: (whitelisted)");
 	} else {
+		struct ReportRecord *rr = CreateRecord("MP Block", nCsumAddr, sizeof(desc.csum));
+		rr->callback = MP_callback;
+		rr->cb_data = ih;
+		AddRange(rr, &desc.r);
 		if (inside && desc.csum.iv != ~desc.csum.v) {
 			// if csum inside and iv!=~v, pre-correct iv so v+iv cancels out
 			// properly
