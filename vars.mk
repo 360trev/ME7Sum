@@ -1,7 +1,12 @@
 RM	= rm -f
 AR	= ar rcs
 ECHO	= @echo
-CFLAGS	= -Wall -O2 -g -Werror -MMD $(CDEFS)
+
+#CASAN	= -fsanitize=address -fsanitize=undefined -fno-sanitize=alignment
+#LASAN	= -lasan -lubsan
+
+CFLAGS	= -Wall -O2 -g -Werror -MMD $(CASAN) $(CDEFS)
+LDFLAGS = -Linifile $(LASAN) -lgmp
 
 CDEFS	+= -D__GIT_VERSION=\"$(GIT_VERSION)\"
 

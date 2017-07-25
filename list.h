@@ -23,6 +23,7 @@
  #define off_of(type, member) (0)
  #define inline __inline
 #else
+ #include <stddef.h>
  #define _typeof typeof
  #define off_of(type, member) offsetof(type, member)
 #endif
