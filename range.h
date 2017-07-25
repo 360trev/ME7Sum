@@ -12,13 +12,13 @@ struct Range {
 };
 
 struct RangeList {
-	struct list_head list;
+	struct list_head list;	/* MSVC doesn't have typeof, so list must always be first */
 
 	struct Range r;
 };
 
 struct ReportRecord {
-	struct list_head list;
+	struct list_head list;	/* MSVC doesn't have typeof, so list must always be first */
 
 	char *name;		/* name of this region */
 	struct RangeList data;	/* data ranges that it spans */

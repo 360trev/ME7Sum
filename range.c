@@ -82,10 +82,10 @@ void AddRangeStartLength(struct ReportRecord *rr, uint32_t start, int len)
 
 static void FreeRecord(struct ReportRecord *rr)
 {
-	struct list_head *e, *tmp;
-	list_for_each_safe(e, tmp, &rr->data.list) {
-		struct RangeList *rl = list_entry(e, struct RangeList, list);
-		list_del(e);
+	struct RangeList *rl, *tmp;
+	list_for_each_entry_safe(rl, tmp, &rr->data.list, list) {
+		//struct RangeList *rl = list_entry(e, struct RangeList, list);
+		list_del(&rl->list);
 		free(rl);
 	}
 	if (rr->name) free(rr->name);
@@ -103,10 +103,9 @@ void PrintAllRecords(FILE *fh)
 
 void FreeAllRecords(void)
 {
-	struct list_head *e, *tmp;
-	list_for_each_safe(e, tmp, &Records) {
-		struct ReportRecord *rr = list_entry(e, struct ReportRecord, list);
-		list_del(e);
+	struct ReportRecord *rr, *tmp;
+	list_for_each_entry_safe(rr, tmp, &Records, list) {
+		list_del(&rr->list);
 		FreeRecord(rr);
 	}
 }

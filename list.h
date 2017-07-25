@@ -1,8 +1,8 @@
 #ifndef __LIST_H
 #define __LIST_H
 
-/* This file is from Linux Kernel (include/linux/list.h) 
- * and modified by simply removing hardware prefetching of list items. 
+/* This file is from Linux Kernel (include/linux/list.h)
+ * and modified by simply removing hardware prefetching of list items.
  * Here by copyright, credits attributed to wherever they belong.
  * Kulesh Shanmugasundaram (kulesh [squiggly] isis.poly.edu)
  */
@@ -16,6 +16,16 @@
  * generate better code by using them directly rather than
  * using the generic single-entry routines.
  */
+
+#ifdef _MSC_VER
+ /* MS does not have typeof, so list MUST be first in struct */
+ #define _typeof(x) void
+ #define off_of(type, member) (0)
+ #define inline __inline
+#else
+ #define _typeof typeof
+ #define off_of(type, member) offsetof(type, member)
+#endif
 
 struct list_head {
 	struct list_head *next, *prev;
@@ -31,7 +41,7 @@ struct list_head {
 } while (0)
 
 /*
- * Insert a new entry between two known consecutive entries. 
+ * Insert a new entry between two known consecutive entries.
  *
  * This is only for internal list manipulation where we know
  * the prev/next entries already!
@@ -104,7 +114,7 @@ static inline void list_del(struct list_head *entry)
 static inline void list_del_init(struct list_head *entry)
 {
 	__list_del(entry->prev, entry->next);
-	INIT_LIST_HEAD(entry); 
+	INIT_LIST_HEAD(entry);
 }
 
 /**
@@ -114,8 +124,8 @@ static inline void list_del_init(struct list_head *entry)
  */
 static inline void list_move(struct list_head *list, struct list_head *head)
 {
-        __list_del(list->prev, list->next);
-        list_add(list, head);
+	__list_del(list->prev, list->next);
+	list_add(list, head);
 }
 
 /**
@@ -126,8 +136,8 @@ static inline void list_move(struct list_head *list, struct list_head *head)
 static inline void list_move_tail(struct list_head *list,
 				  struct list_head *head)
 {
-        __list_del(list->prev, list->next);
-        list_add_tail(list, head);
+	__list_del(list->prev, list->next);
+	list_add_tail(list, head);
 }
 
 /**
@@ -187,7 +197,7 @@ static inline void list_splice_init(struct list_head *list,
  * @member:	the name of the list_struct within the struct.
  */
 #define list_entry(ptr, type, member) \
-	((type *)((char *)(ptr)-(unsigned long)(&((type *)0)->member)))
+	((type *)((char *)(ptr)-off_of(type, member)))
 
 /**
  * list_for_each	-	iterate over a list
@@ -196,7 +206,7 @@ static inline void list_splice_init(struct list_head *list,
  */
 #define list_for_each(pos, head) \
 	for (pos = (head)->next; pos != (head); \
-        	pos = pos->next)
+		pos = pos->next)
 /**
  * list_for_each_prev	-	iterate over a list backwards
  * @pos:	the &struct list_head to use as a loop counter.
@@ -204,8 +214,8 @@ static inline void list_splice_init(struct list_head *list,
  */
 #define list_for_each_prev(pos, head) \
 	for (pos = (head)->prev; pos != (head); \
-        	pos = pos->prev)
-        	
+		pos = pos->prev)
+
 /**
  * list_for_each_safe	-	iterate over a list safe against removal of list entry
  * @pos:	the &struct list_head to use as a loop counter.
@@ -223,9 +233,9 @@ static inline void list_splice_init(struct list_head *list,
  * @member:	the name of the list_struct within the struct.
  */
 #define list_for_each_entry(pos, head, member)				\
-	for (pos = list_entry((head)->next, typeof(*pos), member);	\
-	     &pos->member != (head); 					\
-	     pos = list_entry(pos->member.next, typeof(*pos), member))
+	for (pos = list_entry((head)->next, _typeof(*pos), member);	\
+		&pos->member != (head);					\
+		pos = list_entry(pos->member.next, _typeof(*pos), member))
 
 /**
  * list_for_each_entry_safe - iterate over list of given type safe against removal of list entry
@@ -235,10 +245,10 @@ static inline void list_splice_init(struct list_head *list,
  * @member:	the name of the list_struct within the struct.
  */
 #define list_for_each_entry_safe(pos, n, head, member)			\
-	for (pos = list_entry((head)->next, typeof(*pos), member),	\
-		n = list_entry(pos->member.next, typeof(*pos), member);	\
-	     &pos->member != (head); 					\
-	     pos = n, n = list_entry(n->member.next, typeof(*n), member))
+	for (pos = list_entry((head)->next, _typeof(*pos), member),	\
+		n = list_entry(pos->member.next, _typeof(*pos), member);\
+		&pos->member != (head);					\
+		pos = n, n = list_entry(n->member.next, _typeof(*n), member))
 
 
 #endif

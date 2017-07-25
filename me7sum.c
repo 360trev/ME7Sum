@@ -78,10 +78,10 @@ struct MultipointDescriptor {
 #if 0
 static int sbhexdump(struct strbuf *buf, const void *p, int len)
 {
-    int i=len;
+	int i=len;
 	int ret=0;
 	const uint8_t *ptr=p;
-    while(i--)
+	while(i--)
 		ret+=sbprintf(buf, "%02x%s", *ptr++, ((i&0xf)==0 && len>32)?"\n":i?" ":"");
 	return ret;
 }
@@ -1741,11 +1741,12 @@ static int DoROMSYS_ProgramPages(struct ImageHandle *ih)
 	struct Range r;
 	int off = Config.romsys + offsetof(struct ROMSYSDescriptor, program_pages_csum);
 	uint32_t *p32 = (uint32_t *)(ih->d.u8 + off);
+	struct ReportRecord *rr;
 
 	printf(" Program pages: 8k page first+last in 0x0000-0xFFFF and 0x20000-0x%X\n",
 		(int)ih->len-1);
 
-	struct ReportRecord *rr = CreateRecord("ROMSYS ProgramPages", off, 4);
+	rr = CreateRecord("ROMSYS ProgramPages", off, 4);
 
 	r.start=0x00000; r.end=0x0FFFF;
 	nCalcProgramPagesSum=ProgramPageSum(ih, &r, rr);
