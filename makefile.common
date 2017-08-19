@@ -1,3 +1,4 @@
+# included by GNUMakefile and inifile/makefile
 
 OBJ     =$(SRC:.c=.o) # replaces the .c from SRC with .o
 DEPS    =$(SRC:.c=.d) # replaces the .c from SRC with .d

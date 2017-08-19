@@ -3,8 +3,7 @@
 
 #include "pgetopt.h"
 #define getopt pgetopt
-/* popterr does the WRONG thing */
-static int opterr;
+#define opterr popterr /* popterr does the WRONG thing? */
 #define optind poptind
 #define optarg poptarg
 #define optopt poptopt

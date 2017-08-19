@@ -12,7 +12,9 @@
 #define MAC_DELIMITER(c) ( c == ':' || c == '-' )
 
 #ifdef _WIN32
+#ifndef va_copy
 #define va_copy(d,s) ((d) = (s))
+#endif
 #endif
 
 #if 0
@@ -85,7 +87,7 @@ int atomac_no_delim(unsigned char * mac, char * buf)
 /* ensure that strbuf has room enough for at least n bytes */
 void sbensure(struct strbuf *sb, int n)
 {
-    size_t len, usable=0;
+    size_t len;
     char *buf = NULL;
 
     ASSERT(sb != NULL);
@@ -103,9 +105,11 @@ void sbensure(struct strbuf *sb, int n)
 #ifdef _WIN32
     sb->len = len;
 #else
-    usable = malloc_usable_size(buf);
-    /* Take advantage of full usable allocation */
-    sb->len = (usable > len) ? usable : len;
+    {
+	size_t usable = malloc_usable_size(buf);
+	/* Take advantage of full usable allocation */
+	sb->len = (usable > len) ? usable : len;
+    }
 #endif
     sb->pbuf = buf;
 }
@@ -115,7 +119,6 @@ int vsbprintf(struct strbuf *param, const char *fmt, va_list ap)
 {
     int ret;
     char *buf;
-    size_t usable=0;
 
     if (!param) return 0;
 
@@ -127,10 +130,12 @@ int vsbprintf(struct strbuf *param, const char *fmt, va_list ap)
 	buf = malloc(param->len);
 	// ASSERT_INFO((buf != NULL), "%zu", param->len);
 #ifndef _WIN32
-	/* Take advantage of full usable allocation */
-	usable = malloc_usable_size(buf);
-	if (param->len < usable)
-	    param->len = usable;
+	{
+	    /* Take advantage of full usable allocation */
+	    size_t usable = malloc_usable_size(buf);
+	    if (param->len < usable)
+		param->len = usable;
+	}
 #endif
     }
 
@@ -145,10 +150,12 @@ int vsbprintf(struct strbuf *param, const char *fmt, va_list ap)
         else break;
 	//ASSERT_INFO((buf != NULL), "%zu", param->len);
 #ifndef _WIN32
-	/* Take advantage of full usable allocation */
-	usable = malloc_usable_size(buf);
-	if (param->len < usable)
-	    param->len = usable;
+	{
+	    /* Take advantage of full usable allocation */
+	    size_t usable = malloc_usable_size(buf);
+	    if (param->len < usable)
+		param->len = usable;
+	}
 #endif
     }
     param->offset += ret;
@@ -351,7 +358,7 @@ void sbfree(struct strbuf *sb)
     }
 }
 
-#ifdef _WIN32
+#if _MSC_VER
 static char *strtok_r(char *str, const char *delim, char **saveptr)
 {
     return strtok(str, delim);

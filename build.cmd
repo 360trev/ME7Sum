@@ -20,7 +20,7 @@ GOTO Common
 :Common
 rem CALL "%PROGPATH%\Microsoft Visual Studio %VSVER%\VC\vcvarsall.bat" x86
 echo "%PROGRAMFILES(X86)%\Microsoft Visual Studio\%VSVER%\Community\VC\Auxiliary\Build\vcvarsall.bat"
-CALL "%PROGRAMFILES(X86)%\Microsoft Visual Studio\%VSVER%\Community\VC\Auxiliary\Build\vcvarsall.bat" x86 8.1
+CALL "%PROGRAMFILES(X86)%\Microsoft Visual Studio\%VSVER%\Community\VC\Auxiliary\Build\vcvarsall.bat" x86
 
 cd %CURDIR%
 for /f "usebackq" %%i in ( `git describe --tags "--abbrev=4" --dirty --always` ) do SET GIT_VERSION=%%i
