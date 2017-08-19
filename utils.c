@@ -146,6 +146,7 @@ void hexdump(const uint8_t *buf, int len, const char *end)
     printf("%s", end);
 }
 
+#if 0
 #ifdef _WIN32
 int snprintf(char *str, size_t size, const char *format, ...)
 {
@@ -159,4 +160,5 @@ int snprintf(char *str, size_t size, const char *format, ...)
 
     return count;
 }
+#endif
 #endif
