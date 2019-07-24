@@ -137,7 +137,7 @@ void block_encrypt(mpz_t C, mpz_t M, public_key kp)
     return;
 }
 
-int encrypt(char *cipher, const char *message, int length, public_key kp)
+int rsa_encrypt(char *cipher, const char *message, int length, public_key kp)
 {
     /* Its probably overkill, but I implemented PKCS#1v1.5 paging
      * Encoded message block is of the form:
@@ -202,7 +202,7 @@ void block_decrypt(mpz_t M, mpz_t C, private_key ku)
     return;
 }
 
-int decrypt(char* message, const char* cipher, int length, private_key ku)
+int rsa_decrypt(char* message, const char* cipher, int length, private_key ku)
 {
     int msg_idx = 0;
     char buf[BLOCK_SIZE];

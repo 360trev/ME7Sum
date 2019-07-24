@@ -3,8 +3,11 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <ctype.h>
-#include <malloc.h>
 #include <assert.h>
+
+#ifdef __linux__
+#include <malloc.h>
+#endif
 
 #include "str.h"
 
@@ -102,14 +105,14 @@ void sbensure(struct strbuf *sb, int n)
 
     buf = realloc(sb->pbuf, len);
     // ASSERT_INFO((buf != NULL), "%zu", len);
-#ifdef _WIN32
-    sb->len = len;
-#else
+#ifdef _MALLOC_H
     {
 	size_t usable = malloc_usable_size(buf);
 	/* Take advantage of full usable allocation */
 	sb->len = (usable > len) ? usable : len;
     }
+#else
+    sb->len = len;
 #endif
     sb->pbuf = buf;
 }
@@ -129,7 +132,7 @@ int vsbprintf(struct strbuf *param, const char *fmt, va_list ap)
 	    param->len = 100;
 	buf = malloc(param->len);
 	// ASSERT_INFO((buf != NULL), "%zu", param->len);
-#ifndef _WIN32
+#ifdef _MALLOC_H
 	{
 	    /* Take advantage of full usable allocation */
 	    size_t usable = malloc_usable_size(buf);
@@ -149,7 +152,7 @@ int vsbprintf(struct strbuf *param, const char *fmt, va_list ap)
         else if(ret >= rem) buf = realloc(buf, param->len += ret);
         else break;
 	//ASSERT_INFO((buf != NULL), "%zu", param->len);
-#ifndef _WIN32
+#ifdef _MALLOC_H
 	{
 	    /* Take advantage of full usable allocation */
 	    size_t usable = malloc_usable_size(buf);
