@@ -48,7 +48,7 @@ It should generally autodetect checksum/CRC blocks, but is known not to work on 
 ferrari360.bin
 
 # Building
-Under unix or cygwin, "make" should work.
+Under unix or cygwin, "make" should work. On debian you will need `libgmp-dev`
 
 Under Windows MSVSS/nmake, type "build clean" then "build"
 
