@@ -272,30 +272,40 @@ int dump_section_properties(struct section *sections, const char *sectname)
 	return 0;
 }
 
+static ssize_t safe_write(int fd, const void *buf, size_t count)
+{
+	ssize_t ret = write(fd, buf, count);
+	if (ret<0) {
+		perror("write");
+		exit(1);
+	}
+	return ret;
+}
+
 void list_properties(int f, struct section *sect)
 {
 	struct property *prop;
 
 	while (sect)
 	{
-		write(f, "[", 1);
-		write(f, sect->name, strlen(sect->name));
-		write(f, "]\r\n", 3);
+		safe_write(f, "[", 1);
+		safe_write(f, sect->name, strlen(sect->name));
+		safe_write(f, "]\r\n", 3);
 
 		prop = sect->properties;
 		while (prop)
 		{
-			write(f, prop->name, strlen(prop->name));
+			safe_write(f, prop->name, strlen(prop->name));
 			if (prop->value)
 			{
-				write(f, "=", 1);
-				write(f, prop->value, strlen(prop->value));
+				safe_write(f, "=", 1);
+				safe_write(f, prop->value, strlen(prop->value));
 			}
-			write(f, "\r\n", 2);
+			safe_write(f, "\r\n", 2);
 			prop = prop->next;
 		}
 
-		if (sect->next) write(f, "\r\n", 2);
+		if (sect->next) safe_write(f, "\r\n", 2);
 		sect = sect->next;
 	}
 }
