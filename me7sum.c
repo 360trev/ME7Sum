@@ -740,10 +740,12 @@ out:
 	// free config
 	if(osconfig != 0) { free_properties(osconfig); }
 
-
+	// Made minor alterations in output to circumvent issue #9 @nyetwurk
 	if (ErrorsCorrected!=ErrorsFound) {
 		printf("\n*** WARNING! %d/%d uncorrected error(s) in %s! ***\n",
 			ErrorsFound-ErrorsCorrected, ErrorsFound, input);
+	} else if (ErrorsFound == 0){
+		printf("\n*** No errors were found and so no \"out.bin\" was generated.");
 	} else if (output) {
 		printf("\n*** DONE! %d/%d error(s) in %s corrected in %s! ***\n", ErrorsCorrected,
 			ErrorsFound, input, output);
