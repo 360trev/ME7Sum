@@ -96,6 +96,10 @@ static int sbprintdesc(struct strbuf *buf, const struct MultipointDescriptor *d)
 }
 #endif
 
+#ifndef __GIT_VERSION
+#define __GIT_VERSION "unknown"
+#endif
+
 #define MAX_CRC_BLKS 4
 #define MD5_MAX_BLKS 4
 // main firmware checksum validation
