@@ -46,8 +46,9 @@
 
 //#define DEBUG_ROM_INFO
 //#define DEBUG_ROMSYS_MATCHING
-//#define DEBUG_RSA_MATCHING
 //#define DEBUG_CRC_MATCHING
+//#define DEBUG_ROMSYS_PP_MATCHING
+//#define DEBUG_RSA_MATCHING
 //#define DEBUG_MAIN_MATCHING
 //#define DEBUG_MULTIPOINT_MATCHING
 
@@ -196,26 +197,28 @@ static int FindRomInfo(const struct ImageHandle *ih);
 static int DoRomInfo(const struct ImageHandle *ih, struct section *osconfig);
 
 static int FindROMSYS(struct ImageHandle *ih);
-static int DoROMSYS(struct ImageHandle *ih);
-static int DoROMSYS_ProgramPages(struct ImageHandle *ih);
-
-static int FindRSAOffsets(struct ImageHandle *ih);
-static int FindMD5Ranges(struct ImageHandle *ih);
-static int DoRSA(struct ImageHandle *ih);
-
-static int FindCRCTab(const struct ImageHandle *ih);
-static int DoCRCTab(struct ImageHandle *ih);
+static int DoROMSYS(struct ImageHandle *ih); // Startup in RSA, MP; ParamPage in RSA, MP, Main CSM, Main CRC
 
 static int FindMainCRCPreBlk(const struct ImageHandle *ih);
 static int FindMainCRCBlks(const struct ImageHandle *ih);
 static int FindMainCRCOffsets(const struct ImageHandle *ih);
+static int DoMainCRCs(struct ImageHandle *ih); // In ROMSYS Program Pages (sometimes), Main CSM, MP
+
 static int FindMainCSMOffsets(const struct ImageHandle *ih);
-static int DoMainCRCs(struct ImageHandle *ih);
-static int DoMainCSMs(struct ImageHandle *ih);
+static int DoMainCSMs(struct ImageHandle *ih); // In Main Program CSM, MP
+
+static int DoROMSYS_ProgramPages(struct ImageHandle *ih); // In RSA (sometimes, in tuned files), MP
+
+static int FindRSAOffsets(struct ImageHandle *ih);
+static int FindMD5Ranges(struct ImageHandle *ih);
+static int DoRSA(struct ImageHandle *ih); // In Main Program CSM, MP
+
+static int FindCRCTab(const struct ImageHandle *ih);
+static int DoCRCTab(struct ImageHandle *ih);
 
 static int FindMainProgramOffset(const struct ImageHandle *ih);
 static int FindMainProgramFinal(const struct ImageHandle *ih);
-static int DoMainChecksum(struct ImageHandle *ih);
+static int DoMainProgramCSM(struct ImageHandle *ih); // In MP
 
 static int FindChecksumBlks(const struct ImageHandle *ih, int which);
 static int DoChecksumBlk(struct ImageHandle *ih, uint32_t nStartBlk, struct strbuf *buf, int bootrom);
@@ -444,6 +447,7 @@ int main(int argc, char **argv)
 		}
 	}
 
+
 	//
 	// ROM info
 	//
@@ -493,28 +497,6 @@ int main(int argc, char **argv)
 
 	DEBUG_EXIT_ROMSYS;
 
-
-	//
-	// RSA
-	//
-	printf("\nStep #%d: Reading RSA signatures ..\n", ++Step);
-
-	FindRSAOffsets(&ih);
-	if(Config.rsa.n && Config.rsa.s && Config.rsa.e) {
-		FindMD5Ranges(&ih);
-		if (Config.rsa.md5[0].start && Config.rsa.md5[0].end) {
-			DoRSA(&ih);
-		} else {
-			printf("Step #%d: ERROR! Detected RSA signature, but no MD5 regions\n", Step);
-			ErrorsUncorrectable++;
-		}
-	}
-
-	if(summary && summary<=Step) goto out;
-
-	DEBUG_EXIT_RSA;
-
-
 	//
 	// CRC table(s)
 	//
@@ -532,9 +514,9 @@ int main(int argc, char **argv)
 
 
 	//
-	// Main data checksums if specified
+	// Main data CRC/checksums if specified
 	//
-	printf("\nStep #%d: Reading Main Data Checksums ..\n", ++Step);
+	printf("\nStep #%d: Reading Main Data CRC/Checksums ..\n", ++Step);
 
 	if(Config.crc[0].r.start==0 && Config.crc[0].r.end==0)
 	{
@@ -558,7 +540,7 @@ int main(int argc, char **argv)
 	}
 
 	if(Config.crc[1].r.start && Config.crc[1].r.end &&
-		(Config.crc[1].offset || Config.csm_offset  )) {
+		(Config.crc[1].offset || Config.csm_offset)) {
 		if(Verbose && Config.csm_offset) {
 			if(Config.crc[1].offset) {
 				printf(" %s has both main CRC and checksum offsets!\n",
@@ -575,6 +557,7 @@ int main(int argc, char **argv)
 		{
 			DoMainCRCs(&ih);
 		}
+
 		if(Config.csm_offset)
 		{
 			DoMainCSMs(&ih);
@@ -595,6 +578,10 @@ int main(int argc, char **argv)
 
 	DEBUG_EXIT_CRC;
 
+
+	//
+	// ROMSYS Program Pages
+	//
 	if(Config.romsys)
 	{
 		printf("\nStep #%d: ROMSYS Program Pages\n", ++Step);
@@ -605,6 +592,32 @@ int main(int argc, char **argv)
 		printf("Step #%d: ERROR! Skipping ROMSYS Program Pages.. UNDEFINED\n", Step);
 		ErrorsUncorrectable++;
 	}
+
+	if(summary && summary<=Step) goto out;
+
+	DEBUG_EXIT_ROMSYS_PP;
+
+
+	//
+	// RSA
+	//
+	printf("\nStep #%d: Reading RSA signatures ..\n", ++Step);
+
+	FindRSAOffsets(&ih);
+	if(Config.rsa.n && Config.rsa.s && Config.rsa.e) {
+		FindMD5Ranges(&ih);
+		if (Config.rsa.md5[0].start && Config.rsa.md5[0].end) {
+			DoRSA(&ih);
+		} else {
+			printf("Step #%d: ERROR! Detected RSA signature, but no MD5 regions\n", Step);
+			ErrorsUncorrectable++;
+		}
+	}
+
+	if(summary && summary<=Step) goto out;
+
+	DEBUG_EXIT_RSA;
+
 
 	//
 	// Main program checksums
@@ -622,8 +635,8 @@ int main(int argc, char **argv)
 
 	if (Config.main_checksum_offset && Config.main_checksum_final)
 	{
-		//DoMainChecksum(&ih, Config.main_checksum_offset, Config.main_checksum_final);
-		DoMainChecksum(&ih);
+		//DoMainProgramCSM(&ih, Config.main_checksum_offset, Config.main_checksum_final);
+		DoMainProgramCSM(&ih);
 	}
 	else
 	{
@@ -2453,7 +2466,7 @@ static int FindMainProgramFinal(const struct ImageHandle *ih)
 //
 // Reads the main checksum for the whole ROM
 //
-static int DoMainChecksum(struct ImageHandle *ih)
+static int DoMainProgramCSM(struct ImageHandle *ih)
 {
 	int errors=0;
 	struct Range r[2];
@@ -2795,4 +2808,4 @@ static int DoChecksumBlk(struct ImageHandle *ih, uint32_t nStartBlk, struct strb
 	return 0;
 }
 
-// vim:ts=4:sw=4
+// vim:ts=4:sw=4:noexpandtab

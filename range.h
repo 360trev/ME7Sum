@@ -27,6 +27,7 @@ struct ReportRecord {
 	int deps;		/* other checksums found later that are in one of my ranges */
 	int (*callback)(void *, struct ReportRecord *);
 	void *cb_data;	/* pointer passed to callback */
+	int index;
 };
 
 extern struct ReportRecord *CreateRecord(const char *name, uint32_t start, int len);
