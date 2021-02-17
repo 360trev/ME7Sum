@@ -247,7 +247,7 @@ static int check_whitelist(struct ImageHandle *ih, uint32_t addr)
 	struct MultipointDescriptor desc[4];
 	/* Check for hardcoded bootrom csums... if there, treat as ok */
 	static const uint32_t whitelist[][2] = {{0x0fa0f5cf, 0x0f4716b3},
-										    {0x0e59d5c8, 0x1077fb35}};
+											{0x0e59d5c8, 0x1077fb35}};
 	int i;
 
 	for(i=0;i<4;i++)
@@ -749,7 +749,7 @@ out:
 		printf("\n*** WARNING! %d/%d uncorrected error(s) in %s! ***\n",
 			ErrorsFound-ErrorsCorrected, ErrorsFound, input);
 	} else if (ErrorsFound == 0){
-		printf("\n*** No errors were found and so no \"out.bin\" was generated.");
+		printf("\n*** No errors were found and so no \"out.bin\" was generated.\n");
 	} else if (output) {
 		printf("\n*** DONE! %d/%d error(s) in %s corrected in %s! ***\n", ErrorsCorrected,
 			ErrorsFound, input, output);
@@ -833,8 +833,8 @@ static int DoRomInfo(const struct ImageHandle *ih, struct section *osconfig)
 		char label_str[81];
 		const char * ptr_label;
 
-		snprintf(label_str,  sizeof(label_str), "dump_%d_label",  i);
-		ptr_label   = get_property(       osconfig, "dumps", label_str,   NULL);
+		snprintf(label_str, sizeof(label_str), "dump_%d_label", i);
+		ptr_label = get_property(osconfig, "dumps", label_str,  NULL);
 		if(ptr_label) {
 			if(strlen(ptr_label)>max_len) {
 				max_len = strlen(ptr_label);
@@ -864,11 +864,11 @@ static int DoRomInfo(const struct ImageHandle *ih, struct section *osconfig)
 		uint32_t ptr_offset;
 		uint32_t ptr_length;
 
-		snprintf(type_str,   sizeof(type_str), "dump_%d_type",   i);
+		snprintf(type_str,   sizeof(type_str), "dump_%d_type",      i);
 		snprintf(visible_str,sizeof(visible_str), "dump_%d_visible",i);
-		snprintf(label_str,  sizeof(label_str), "dump_%d_label",  i);
-		snprintf(offset_str, sizeof(offset_str), "dump_%d_offset", i);
-		snprintf(length_str, sizeof(length_str), "dump_%d_len",    i);
+		snprintf(label_str,  sizeof(label_str), "dump_%d_label",    i);
+		snprintf(offset_str, sizeof(offset_str), "dump_%d_offset",  i);
+		snprintf(length_str, sizeof(length_str), "dump_%d_len",     i);
 
 		// get config out of ini file...
 #ifdef DEBUG_ROM_INFO
@@ -893,10 +893,10 @@ static int DoRomInfo(const struct ImageHandle *ih, struct section *osconfig)
 			// restrict maximum dump to 1kbyte [buffer size]
 			if(ptr_length > sizeof(str_data) - 1) ptr_length = sizeof(str_data) - 1;	// Leave room for null termination
 			DEBUG_ROM("\n%s = %s\n",type_str,    ptr_type);
-			DEBUG_ROM("%s = %s\n",visible_str, ptr_visible);
-			DEBUG_ROM("%s = '%s'\n",label_str, ptr_label);
+			DEBUG_ROM("%s = %s\n",visible_str,   ptr_visible);
+			DEBUG_ROM("%s = '%s'\n",label_str,   ptr_label);
 			DEBUG_ROM("%s = 0x%x\n",offset_str,  ptr_offset);
-			DEBUG_ROM("%s = %d\n",length_str,  ptr_length);
+			DEBUG_ROM("%s = %d\n",length_str,    ptr_length);
 
 			/* snprintf null terminates for us if string is too long :) */
 			snprintf(str_data, sizeof(str_data), "%s", ih->d.s+ptr_offset);
@@ -1238,7 +1238,7 @@ static int FindRSAOffsets(struct ImageHandle *ih)
 	int i;
 	int ret=0;
 	static const uint8_t needle[2][14] = {
-	    //                                     LL    LL                HH    HH
+		//                                     LL    LL                HH    HH
 		{0x80, 0x00, 0x88, 0x40, 0xE6, 0xF4, 0x00, 0x00, 0xE6, 0xF5, 0x80, 0x00, 0x88, 0x50},
 		{0xE0, 0x44, 0x88, 0x40, 0xE6, 0xF4, 0x00, 0x00, 0xE6, 0xF5, 0x80, 0x00, 0x88, 0x50}
 	};
@@ -2473,7 +2473,7 @@ static int DoMainChecksum(struct ImageHandle *ih)
 	memcpy_from_le32(r, ih->d.u8+Config.main_checksum_offset, sizeof(r));
 
 	if (NormalizeRange(ih, r) || NormalizeRange(ih, r+1) ||
-	    r[0].start==0xffffffff || r[1].start==0xffffffff)
+		r[0].start==0xffffffff || r[1].start==0xffffffff)
 	{
 		printf(" ERROR! BAD MAIN CHECKSUM DESCRIPTOR(s)\n");
 		ErrorsUncorrectable++;
@@ -2492,7 +2492,7 @@ static int DoMainChecksum(struct ImageHandle *ih)
 		sr.start = r[0].end+1;
 		sr.end = r[1].start-1;
 		//struct Range sr = {.start = 0x10000, .end = 0x1FFFF};
-	    ss = CalcChecksumBlk16(ih, &sr);
+		ss = CalcChecksumBlk16(ih, &sr);
 		sc = crc32(0, ih->d.u8+sr.start, sr.end-sr.start+1);
 		printf("    0x%06X-0x%06X CalcChk: %08X CalcCRC: %08X SKIPPED\n",
 			sr.start, sr.end, ss, sc);

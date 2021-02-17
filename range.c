@@ -18,7 +18,7 @@ static int test_for_overlap(const char *name, struct list_head *records, const s
 			const struct Range *b = &rl->r;
 			if (MAX(a->start, b->start)<=MIN(a->end, b->end)) {
 				sbprintf(&rr->msg, "%s checksum 0x%08x-0x%08x is in my data\n",
-				    name, a->start, a->end);
+					name, a->start, a->end);
 				rr->deps ++;
 				ret ++;
 				// exit(-1);
@@ -116,14 +116,22 @@ int ProcessRecordDeps(void)
 	struct ReportRecord *rr;
 	list_for_each_entry(rr, &Records, list) {
 		if (rr->deps) {
-		       if (rr->callback) rr->callback(rr->cb_data, rr);
-		       else {
-			    printf("%s: no callback for recheck\n", rr->name);
-			    if (rr->msg.pbuf)
-				    printf("%s", rr->msg.pbuf);
-			    errs++;
-		       }
+			int ret = 0;
+			if (rr->callback) {
+				ret = rr->callback(rr->cb_data, rr);
+			} else {
+				printf("%s: no callback for recheck\n", rr->name);
+				ret = -1;
+			}
+
+			if (ret) {
+				if (rr->msg.pbuf)
+					printf("%s", rr->msg.pbuf);
+				errs++;
+			}
 		}
 	}
 	return errs;
 }
+
+// vim:ts=4:sw=4
