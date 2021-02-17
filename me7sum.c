@@ -223,7 +223,7 @@ static int DoChecksumBlk(struct ImageHandle *ih, uint32_t nStartBlk, struct strb
 static void usage(const char *prog)
 {
 	printf("Usage: %s [-v] [-i <config.ini>] <inrom.bin> [outrom.bin]\n", prog);
-	printf("       %s [-v] [-i <config.ini>] [-r <report.txt>] -s <inrom.bin>\n", prog);
+	printf("       %s [-v] [-i <config.ini>] [-r <report.txt>] [-s] <inrom.bin>\n", prog);
 	exit(-1);
 }
 
@@ -748,8 +748,8 @@ out:
 	if (ErrorsCorrected!=ErrorsFound) {
 		printf("\n*** WARNING! %d/%d uncorrected error(s) in %s! ***\n",
 			ErrorsFound-ErrorsCorrected, ErrorsFound, input);
-	} else if (ErrorsFound == 0){
-		printf("\n*** No errors were found and so no \"out.bin\" was generated.\n");
+	} else if (ErrorsFound == 0 && output){
+		printf("\n*** No errors were found and so no \"%s\" was generated.\n", output);
 	} else if (output) {
 		printf("\n*** DONE! %d/%d error(s) in %s corrected in %s! ***\n", ErrorsCorrected,
 			ErrorsFound, input, output);
