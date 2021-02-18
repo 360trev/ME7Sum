@@ -19,8 +19,9 @@ static int test_for_data_overlap(const struct ReportRecord *rec, struct list_hea
 {
 	int ret=0;
 	const struct Range *csum = &rec->checksum;
-	struct ReportRecord *rr;
-	list_for_each_entry(rr, records, list) {
+	struct ReportRecordList *rrl;
+	list_for_each_entry(rrl, records, list) {
+		struct ReportRecord *rr = &rrl->rr;
 		const struct RangeList *rl;
 		if (strncmp(rec->name, rr->name, MAX_NAME_LENGTH)) {
 			list_for_each_entry(rl, &rr->data.list, list) {
@@ -30,9 +31,8 @@ static int test_for_data_overlap(const struct ReportRecord *rec, struct list_hea
 						rec->index, rec->name, rr->index, rr->name,
 						csum->start, csum->end,
 						data->start, data->end);
-					rr->deps ++;
+					rr->dep_errs ++;
 					ret ++;
-					// exit(-1);
 				}
 			}
 		}
@@ -45,8 +45,9 @@ static int test_for_data_overlap(const struct ReportRecord *rec, struct list_hea
 static int test_for_csum_overlap(struct ReportRecord *rec, struct list_head *records, const struct Range *data)
 {
 	int ret=0;
-	struct ReportRecord *rr;
-	list_for_each_entry(rr, records, list) {
+	struct ReportRecordList *rrl;
+	list_for_each_entry(rrl, records, list) {
+		struct ReportRecord *rr = &rrl->rr;
 		if (strncmp(rec->name, rr->name, MAX_NAME_LENGTH)) {
 			const struct Range *csum = &rr->checksum;
 			if (MAX(csum->start, data->start)<=MIN(csum->end, data->end)) {
@@ -64,18 +65,26 @@ static int test_for_csum_overlap(struct ReportRecord *rec, struct list_head *rec
 
 struct ReportRecord *CreateRecord(const char *name, uint32_t start, int len)
 {
-	struct ReportRecord *rr = calloc(1, sizeof(struct ReportRecord));
+	struct ReportRecordList *rrl = calloc(1, sizeof(struct ReportRecordList));
+	struct ReportRecord *rr = &rrl->rr;
 	//fprintf(stderr,"******* CREATE %s *******\n", name);
 	rr->name = strndup(name, MAX_NAME_LENGTH);
 	INIT_LIST_HEAD(&rr->data.list);
 	rr->checksum.start = start;
 	rr->checksum.end = start+len-1;
-	rr->index = list_entry(Records.prev, struct ReportRecord, list)->index+1;
+
+	if (!list_empty(&Records)) {
+		struct ReportRecordList *prev =
+			list_entry(Records.prev, struct ReportRecordList, list);
+		rr->index = prev->rr.index+1;
+	} else {
+		rr->index = 1;
+	}
+
 
 	// check if this new checksum is in existing data ranges
 	test_for_data_overlap(rr, &Records);
-
-	list_add_tail(&rr->list, &Records);
+	list_add_tail(&rrl->list, &Records);
 	return rr;
 }
 
@@ -128,42 +137,44 @@ void AddRangeStartLength(struct ReportRecord *rr, uint32_t start, int len)
 	list_add_tail(&rl->list, &rr->data.list);
 }
 
-static void FreeRecord(struct ReportRecord *rr)
+static void FreeRecord(struct ReportRecordList *rrl)
 {
 	struct RangeList *rl, *tmp;
-	list_for_each_entry_safe(rl, tmp, &rr->data.list, list) {
+	list_for_each_entry_safe(rl, tmp, &rrl->rr.data.list, list) {
 		//struct RangeList *rl = list_entry(e, struct RangeList, list);
 		list_del(&rl->list);
 		free(rl);
 	}
+	struct ReportRecord *rr = &rrl->rr;
 	if (rr->name) free(rr->name);
 	if (rr->msg.pbuf) free(rr->msg.pbuf);
-	free(rr);
+	free(rrl);
 }
 
 void PrintAllRecords(FILE *fh)
 {
-	struct ReportRecord *rr;
-	list_for_each_entry(rr, &Records, list) {
-		PrintRecord(fh, rr);
+	struct ReportRecordList *rrl;
+	list_for_each_entry(rrl, &Records, list) {
+		PrintRecord(fh, &rrl->rr);
 	}
 }
 
 void FreeAllRecords(void)
 {
-	struct ReportRecord *rr, *tmp;
-	list_for_each_entry_safe(rr, tmp, &Records, list) {
-		list_del(&rr->list);
-		FreeRecord(rr);
+	struct ReportRecordList *rrl, *tmp;
+	list_for_each_entry_safe(rrl, tmp, &Records, list) {
+		list_del(&rrl->list);
+		FreeRecord(rrl);
 	}
 }
 
 int ProcessRecordDeps(void)
 {
 	int errs=0;
-	struct ReportRecord *rr;
-	list_for_each_entry(rr, &Records, list) {
-		if (rr->deps) {
+	struct ReportRecordList *rrl;
+	list_for_each_entry(rrl, &Records, list) {
+		struct ReportRecord *rr = &rrl->rr;
+		if (rr->dep_errs) {
 			if (rr->callback) {
 				errs += rr->callback(rr->cb_data, rr);
 			} else {

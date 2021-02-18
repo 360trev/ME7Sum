@@ -1,6 +1,7 @@
 #ifndef _RANGE_H
 #define _RANGE_H
 
+#include <stdio.h>
 #include <stdint.h>
 
 #include "str.h"
@@ -18,16 +19,21 @@ struct RangeList {
 };
 
 struct ReportRecord {
-	struct list_head list;	/* MSVC doesn't have typeof, so list must always be first */
-
+	int index;
 	char *name;		/* name of this region */
 	struct RangeList data;	/* data ranges that it spans */
 	struct Range checksum;	/* range of checksum data */
-	struct strbuf msg;	/* error messages */
-	int deps;		/* other checksums found later that are in one of my ranges */
+	struct strbuf msg;	/* dependency messages */
+	int dep_errs;		/* number of other checksums found later that are in my data */
+
 	int (*callback)(void *, struct ReportRecord *);
 	void *cb_data;	/* pointer passed to callback */
-	int index;
+};
+
+struct ReportRecordList {
+	struct list_head list; /* MSVC doesn't have typeof, so list must always
+ be first */
+	struct ReportRecord rr;
 };
 
 extern struct ReportRecord *CreateRecord(const char *name, uint32_t start, int len);
