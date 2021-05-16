@@ -5,7 +5,7 @@ for i in $*; do
     ssecu=$( ../me7sum -s $i | grep "SW Number" | sed -e 's/^1037//' | sed -e 's/ //g' )
 
     if [ -z "$box" -o -z "$ver" -o -z "$ssecu" ]; then
-	echo $i box=\"$box\" ver=\"$ver\" ssecu=\"$ssecu\" failed
+	echo $i box=\"$box\" ver=\"$ver\" ssecu=\"$ssecu\" failed >&2
 	continue
     fi
 
@@ -14,7 +14,7 @@ for i in $*; do
     out=$box.bin
 
     if [ "$i" = "$out" -o "$i" = "$outl" ]; then
-	echo $i \($outl\) ok
+	echo $i \($outl\) ok >&2
     else
 	if [ ! -f "$out" ]; then
 	    echo git mv $i $out
@@ -23,7 +23,7 @@ for i in $*; do
 	elif [ ! -f "outll" ]; then
 	    echo git mv $i $outll
 	else
-	    echo $i $outll failed
+	    echo $i $outll failed >&2
 	fi
     fi
 done
