@@ -1,13 +1,14 @@
-include vars.mk
+# FOR MSVSS nmake only
 
-EXE     =me7sum$(EXE_EXT)
-LIBS    =ini
-SUBDIRS =inifile
-LDFLAGS=-Linifile
+TARGET = me7sum.exe
+SOURCES = crc32.c inifile_prop.c me7sum.c utils.c str.c range.c inifile/inifile.c os/pgetopt.c rsa.c md5.c
+LIBRARIES = Ws2_32.lib mpir/mpir-2017.lib
 
-include makefile.common
+CFLAGS = -D__GIT_VERSION=\"$(GIT_VERSION)\"
 
-me7sum.o: me7sum.c crc32.h utils.h inifile_prop.h inifile/inifile.h
-inifile_prop.o: inifile_prop.h inifile/inifile.h
-crc32.o: crc32.h
-utils.o: utils.h
+all: $(TARGET)
+$(TARGET):$(SOURCES)
+	cl /EHsc /Fe$@ $(CFLAGS) /Tc $(SOURCES) $(LIBRARIES)
+
+clean:
+	del $(TARGET) *.obj
