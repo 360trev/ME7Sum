@@ -4,7 +4,7 @@ This project is under BSD open source license. Its on the most unrestrictive fre
 It is a tool written in C for management of Bosch ME7.1 firmware dumps.
 
 The latest binary releases are always available here:
-http://nyetwurk.github.com/ME7Sum/
+https://nyetwurk.github.io/ME7Sum/
 
 # Running
 To check image.bin:
