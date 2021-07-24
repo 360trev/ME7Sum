@@ -1421,9 +1421,17 @@ static int rsa_block_unpad(uint8_t *data, int len, const uint8_t *blk)
 
 	for(i=2;blk[i] && i<RSA_BLOCK_SIZE-len;i++);
 
-	if (len+i!=RSA_BLOCK_SIZE-1) {
-		printf("len mismatch: %d+%d!=%d-1\n", len, i, RSA_BLOCK_SIZE);
+	if (i+1<11) {
+		printf(" ERROR: Only %d bytes of padding (expected at least 11)\n", i+1);
+		hexdump(blk, RSA_BLOCK_SIZE, "\n");
 		return -1;
+	}
+
+	if (len+i+1<RSA_BLOCK_SIZE) {
+		if (Verbose) {
+			printf(" Warning: Padded block is only %d (%d+%d+1) bytes of %d\n", len+i+1, len, i, RSA_BLOCK_SIZE);
+			hexdump(blk, RSA_BLOCK_SIZE, "\n");
+		}
 	}
 
 	if(blk[i]!=0) {
@@ -1636,11 +1644,12 @@ static int DoRSA(struct ImageHandle *ih)
 		hexdump(dmd5, 16, "\n");
 	*/
 
-	printf(" EncrMD5: ");
 	if (rsa_block_unpad(md5, 16, buf))
 		ErrorsUncorrectable++;
-	else
+	else {
+		printf(" EncrMD5: ");
 		hexdump(md5, 16, "\n");
+	}
 
 	printf(" CalcMD5: ");
 	hexdump(calc_md5, 16, "\n");
