@@ -63,6 +63,16 @@ static int test_for_csum_overlap(struct ReportRecord *rec, struct list_head *rec
 	return ret;
 }
 
+#if _WIN32
+static inline char *strndup( const char *s1, size_t n)
+{
+    char *copy= (char*)malloc( n+1 );
+    memcpy( copy, s1, n );
+    copy[n] = 0;
+    return copy;
+};
+#endif
+
 struct ReportRecord *CreateRecord(const char *name, uint32_t start, int len)
 {
 	struct ReportRecordList *rrl = calloc(1, sizeof(struct ReportRecordList));

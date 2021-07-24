@@ -3,6 +3,7 @@
 
 #if _WIN32
 #include "getopt.h"
+#include <stdint.h>
 #include <winsock2.h>	/* ntohl() */
 #else // ! _WIN32
 
