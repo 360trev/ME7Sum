@@ -1572,7 +1572,8 @@ static int DoRSA(struct ImageHandle *ih)
 	MD5_CTX ctx;
 	int i;
 
-	struct ReportRecord *rr = CreateRecord("RSA", Config.rsa.s, RSA_BLOCK_SIZE);
+	struct ReportRecord *rrn = CreateRecord("RSA mod", Config.rsa.n, RSA_BLOCK_SIZE);
+	struct ReportRecord *rrs = CreateRecord("RSA sig", Config.rsa.s, RSA_BLOCK_SIZE);
 
 	memset(md5, 0, sizeof(md5));
 	memset(dmd5, 0, sizeof(dmd5));
@@ -1626,7 +1627,8 @@ static int DoRSA(struct ImageHandle *ih)
 	for(i=0;i<MD5_MAX_BLKS;i++) {
 		int len=Config.rsa.md5[i].end-Config.rsa.md5[i].start+1;
 		if (len>0) {
-			AddRange(rr, Config.rsa.md5+i);
+			AddRange(rrn, Config.rsa.md5+i);
+			AddRange(rrs, Config.rsa.md5+i);
 			printf(" %d) 0x%08X-0x%08X\n", i+1,
 				Config.rsa.md5[i].start,
 				Config.rsa.md5[i].end);
@@ -1658,7 +1660,8 @@ static int DoRSA(struct ImageHandle *ih)
 		ErrorsFound++;
 		if (Config.readonly)
 		{
-			printf(" ** NOT OK **\n");
+			printf(" @%x-%x sig ** NOT OK **\n", Config.rsa.s, Config.rsa.s+RSA_BLOCK_SIZE);
+			printf(" @%x-%x mod ** NOT OK **\n", Config.rsa.n, Config.rsa.n+RSA_BLOCK_SIZE);
 			return -1;
 		}
 		else
