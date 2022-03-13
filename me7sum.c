@@ -514,6 +514,27 @@ int main(int argc, char **argv)
 
 
 	//
+	// RSA
+	//
+	printf("\nStep #%d: Reading RSA signatures ..\n", ++Step);
+
+	FindRSAOffsets(&ih);
+	if(Config.rsa.n && Config.rsa.s && Config.rsa.e) {
+		FindMD5Ranges(&ih);
+		if (Config.rsa.md5[0].start && Config.rsa.md5[0].end) {
+			DoRSA(&ih);
+		} else {
+			printf("Step #%d: ERROR! Detected RSA signature, but no MD5 regions\n", Step);
+			ErrorsUncorrectable++;
+		}
+	}
+
+	if(summary && summary<=Step) goto out;
+
+	DEBUG_EXIT_RSA;
+
+
+	//
 	// Main data CRC/checksums if specified
 	//
 	printf("\nStep #%d: Reading Main Data CRC/Checksums ..\n", ++Step);
@@ -596,27 +617,6 @@ int main(int argc, char **argv)
 	if(summary && summary<=Step) goto out;
 
 	DEBUG_EXIT_ROMSYS_PP;
-
-
-	//
-	// RSA
-	//
-	printf("\nStep #%d: Reading RSA signatures ..\n", ++Step);
-
-	FindRSAOffsets(&ih);
-	if(Config.rsa.n && Config.rsa.s && Config.rsa.e) {
-		FindMD5Ranges(&ih);
-		if (Config.rsa.md5[0].start && Config.rsa.md5[0].end) {
-			DoRSA(&ih);
-		} else {
-			printf("Step #%d: ERROR! Detected RSA signature, but no MD5 regions\n", Step);
-			ErrorsUncorrectable++;
-		}
-	}
-
-	if(summary && summary<=Step) goto out;
-
-	DEBUG_EXIT_RSA;
 
 
 	//
