@@ -27,10 +27,11 @@ static int test_for_data_overlap(const struct ReportRecord *rec, struct list_hea
 			list_for_each_entry(rl, &rr->data.list, list) {
 				const struct Range *data = &rl->r;
 				if (MAX(csum->start, data->start)<=MIN(csum->end, data->end)) {
-					sbprintf(&rr->msg, "%d-%s checksum is in %d-%s data (recheck required): (0x%08x-0x%08x) overlaps with (0x%08x-0x%08x)\n",
+					sbprintf(&rr->msg, "%d-%s checksum is in %d-%s data (recheck required): (0x%08x-0x%08x) overlaps with (0x%08x-0x%08x): %s\n",
 						rec->index, rec->name, rr->index, rr->name,
 						csum->start, csum->end,
-						data->start, data->end);
+						data->start, data->end,
+						rec->index > rr->index?"ERROR":"OK");
 					rr->dep_errs ++;
 					ret ++;
 				}
@@ -51,10 +52,11 @@ static int test_for_csum_overlap(struct ReportRecord *rec, struct list_head *rec
 		if (strncmp(rec->name, rr->name, MAX_NAME_LENGTH)) {
 			const struct Range *csum = &rr->checksum;
 			if (MAX(csum->start, data->start)<=MIN(csum->end, data->end)) {
-				sbprintf(&rec->msg, "%d-%s checksum is in %d-%s data: (0x%08x-0x%08x) overlaps with (0x%08x-0x%08x)\n",
+				sbprintf(&rec->msg, "%d-%s checksum is in %d-%s data: (0x%08x-0x%08x) overlaps with (0x%08x-0x%08x): %s\n",
 					rr->index, rr->name, rec->index, rec->name,
 					csum->start, csum->end,
-					data->start, data->end);
+					data->start, data->end,
+					rr->index > rec->index?"ERROR":"OK");
 				ret ++;
 				// exit(-1);
 			}
