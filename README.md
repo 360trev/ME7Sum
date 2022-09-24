@@ -52,6 +52,8 @@ Under unix or cygwin, "make" should work. On debian you will need `libgmp-dev`
 
 Under Windows MSVSS/nmake, type "build clean" then "build"
 
+Under MacOS, type "brew install gmp" then "make"
+
 # Contributing
 Feel free to contribute to the project!
 
