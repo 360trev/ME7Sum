@@ -25,7 +25,7 @@ static char *trimstr(char *s, char *end)
 		else
 			break;
 	}
-	if (end == s) return NULL;
+	if (end <= s) return NULL;
 
 	t = str = (char *) malloc(end - s + 1);
 	while (s < end)
