@@ -54,16 +54,16 @@ struct property
 extern "C" {
 #endif
 
-struct section *find_section(struct section *sect, char *name);
+const struct section *find_section(const struct section *sect, const char *name);
 int get_section_size(struct section *sect);
-char *find_property(struct section *sect, char *name);
-char *get_property(struct section *sections, char *sectname, char *propname, char *defval);
-int get_numeric_property(struct section *sections, char *sectname, char *propname, int defval);
+const char *find_property(const struct section *sect, const char *name);
+const char *get_property(struct section *sections, const char *sectname, const char *propname, const char *defval);
+int get_numeric_property(struct section *sections, const char *sectname, const char *propname, int defval);
 void free_properties(struct section *sect);
 struct section *parse_properties(char *props);
 void list_properties(int f, struct section *sect);
-struct section *read_properties(char *filename);
-int dump_section_properties(struct section *sections, char *sectname);
+struct section *read_properties(const char *filename);
+int dump_section_properties(struct section *sections, const char *sectname);
 
 #ifdef  __cplusplus
 }

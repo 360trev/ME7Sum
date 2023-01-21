@@ -9,25 +9,42 @@
 extern "C" {
 #endif
 
-#define END_LIST      -1
-#define GET_VALUE			1
-#define GET_STRING    2
-#define ATTR_MAX_PATH	64
-#define ATTR_MAX_NAME	128
+#define END_LIST	-1
+#define GET_VALUE	 1
+#define GET_STRING	 2
+
 
 typedef struct PropertyListItem {
 	int attr_type;
 	uint32_t *attr_adr;
-	char attr_path[ATTR_MAX_PATH];
-	char attr_name[ATTR_MAX_NAME];
-	char attr_default[ATTR_MAX_NAME];
+	const char *attr_path;
+	const char *attr_name;
+	const char *attr_default;
 } PropertyListItem;
 
-uint32_t get_property_value(struct section *sections, char *sectname, char *propname, char *def);
+typedef struct InfoItem {
+	uint32_t	off;
+	uint32_t	len;
+} InfoItem;
+
+typedef struct InfoListItem {
+	const char *label;
+	int attr_type;
+	InfoItem *item;
+	const char *attr_path;
+	const char *attr_name;
+	const char *attr_default;
+	const char *attr_default_len;
+} InfoListItem;
+
+uint32_t get_property_value(struct section *sections, const char *sectname, const char *propname, const char *def);
 int process_properties_list(struct section *osconfig, PropertyListItem *ci);
+int process_info_list(struct section *osconfig, InfoListItem *ci);
 
 #ifdef  __cplusplus
 }
 #endif
 
 #endif
+
+// vim:ts=4:sw=4

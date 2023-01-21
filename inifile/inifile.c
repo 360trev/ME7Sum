@@ -1,7 +1,14 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-#include <unistd.h> // added back in, unable to compile under win32 mingw without it. (for write() function)
+
+#ifdef _MSC_VER
+#include <BaseTsd.h>
+typedef SSIZE_T ssize_t;
+#else
+#include <unistd.h>
+#endif
+
 #include "inifile.h"
 
 static char *trimstr(char *s, char *end)
@@ -18,7 +25,7 @@ static char *trimstr(char *s, char *end)
 		else
 			break;
 	}
-	if (end == s) return NULL;
+	if (end <= s) return NULL;
 
 	t = str = (char *) malloc(end - s + 1);
 	while (s < end)
@@ -52,7 +59,7 @@ static char *trimstr(char *s, char *end)
 	return str;
 }
 
-struct section *find_section(struct section *sect, char *name)
+const struct section *find_section(const struct section *sect, const char *name)
 {
 	while (sect)
 	{
@@ -81,7 +88,7 @@ int get_section_size(struct section *sect)
 	return n;
 }
 
-char *find_property(struct section *sect, char *name)
+const char *find_property(const struct section *sect, const char *name)
 {
 	struct property *prop;
 
@@ -97,21 +104,23 @@ char *find_property(struct section *sect, char *name)
 	return NULL;
 }
 
-char *get_property(struct section *sections, char *sectname, char *propname, char *defval)
+const char *get_property(struct section *sections, const char *sectname, const char *propname, const char *defval)
 {
-	struct section *sect;
-	char *val;
+	const struct section *sect;
+	const char *val;
 
 	sect = find_section(sections, sectname);
+	// must return a pointer that can be freed!
 	if (!sect) return defval;
 
 	val = find_property(sect, propname);
+	// must return a pointer that can be freed!
 	return val ? val : defval;
 }
 
-int get_numeric_property(struct section *sections, char *sectname, char *propname, int defval)
+int get_numeric_property(struct section *sections, const char *sectname, const char *propname, int defval)
 {
-	char *val;
+	const char *val;
 
 	val = get_property(sections, sectname, propname, NULL);
 	return val ? atoi(val) : defval;
@@ -251,9 +260,9 @@ struct section *parse_properties(char *props)
 	return secthead;
 }
 
-int dump_section_properties(struct section *sections, char *sectname)
+int dump_section_properties(struct section *sections, const char *sectname)
 {
-	struct section *sect;
+	const struct section *sect;
 	struct property *prop;
 
 	sect = find_section(sections, sectname);
@@ -268,30 +277,40 @@ int dump_section_properties(struct section *sections, char *sectname)
 	return 0;
 }
 
+static ssize_t safe_write(int fd, const void *buf, size_t count)
+{
+	ssize_t ret = write(fd, buf, count);
+	if (ret<0) {
+		perror("write");
+		exit(1);
+	}
+	return ret;
+}
+
 void list_properties(int f, struct section *sect)
 {
 	struct property *prop;
 
 	while (sect)
 	{
-		write(f, "[", 1);
-		write(f, sect->name, strlen(sect->name));
-		write(f, "]\r\n", 3);
+		safe_write(f, "[", 1);
+		safe_write(f, sect->name, strlen(sect->name));
+		safe_write(f, "]\r\n", 3);
 
 		prop = sect->properties;
 		while (prop)
 		{
-			write(f, prop->name, strlen(prop->name));
+			safe_write(f, prop->name, strlen(prop->name));
 			if (prop->value)
 			{
-				write(f, "=", 1);
-				write(f, prop->value, strlen(prop->value));
+				safe_write(f, "=", 1);
+				safe_write(f, prop->value, strlen(prop->value));
 			}
-			write(f, "\r\n", 2);
+			safe_write(f, "\r\n", 2);
 			prop = prop->next;
 		}
 
-		if (sect->next) write(f, "\r\n", 2);
+		if (sect->next) safe_write(f, "\r\n", 2);
 		sect = sect->next;
 	}
 }
@@ -300,7 +319,7 @@ void list_properties(int f, struct section *sect)
 #include <sys/stat.h>
 #include <stdio.h>
 
-struct section *read_properties(char *filename)
+struct section *read_properties(const char *filename)
 {
 	FILE *f;
 	int size, siz;
