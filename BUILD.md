@@ -40,7 +40,7 @@ Produces: `me7sum`, `inifile/libini.a`
 
 ## Native Windows (MSVC)
 
-### Dependencies
+### Windows Dependencies
 
 - **Visual Studio Build Tools 2022** (or any VS 2017+ install) with the **Desktop development with C++** workload — free download from [Visual Studio](https://visualstudio.microsoft.com/downloads/)
 - **nmake** — Included with the C++ build tools
@@ -50,7 +50,7 @@ Produces: `me7sum`, `inifile/libini.a`
 
 The Windows build uses **bundled MPIR** (`mpir/mpir-2017.lib`) for big-integer math. No system GMP or MPIR installation is required. The library was built with the VS 2017 toolset but links with newer MSVC versions; rebuild MPIR only if linking fails after a major VS upgrade.
 
-### Build
+### Windows Build
 
 From a normal Command Prompt:
 
@@ -71,7 +71,7 @@ build
 
 ## Cygwin
 
-### Dependencies
+### Cygwin Dependencies
 
 - **gcc** (Cygwin)
 - **make**
@@ -84,7 +84,7 @@ Install via Cygwin setup:
 # Install gcc-core, make, git, libgmp-devel
 ```
 
-### Build
+### Cygwin Build
 
 ```bash
 make
@@ -95,9 +95,9 @@ Produces: `me7sum-cyg.exe` (Cygwin-specific suffix per `vars.mk`)
 
 ---
 
-## macOS
+## MacOS
 
-### Dependencies
+### MacOS Dependencies
 
 - **Xcode Command Line Tools** (or full Xcode) — provides `gcc`/`clang`
 - **Homebrew** — for GMP
@@ -107,7 +107,7 @@ Produces: `me7sum-cyg.exe` (Cygwin-specific suffix per `vars.mk`)
 brew install gmp
 ```
 
-### Build
+### MacOS Build
 
 ```bash
 make
@@ -123,9 +123,7 @@ make test   # optional
 - every image in the private [ecu-corpus](https://github.com/nyetlabs/ecu-corpus) submodule (`corpus/`) whose `corpus.tsv` row has `checksums` = `ok`
 - the modified (non-OEM) images in `testdata/modified/`; `testdata/broken/` holds images ME7Sum can't handle and is not tested
 
-With read access to `ecu-corpus`, fetch the submodule at its pinned commit with `make corpus`; `make corpus-bump` moves it to the corpus head (commit the change yourself). The submodule URL is HTTPS; to use SSH, run `git config --global url.git@github.com:.insteadOf https://github.com/`. Without access, `corpus/` stays empty and `make test` skips the corpus images. `XDFKIT_CORPUS` points the tests at another corpus checkout, and `XDFKIT_REQUIRE_CORPUS=1` (set in CI) makes a missing corpus a failure. See xdfkit's `docs/corpus.md` for the corpus specification.
-
-`make bins` is temporary and will be removed: it fills a gitignored `bins/` with symlinks under the names the old committed `bins/` directory used (`scripts/bins-compat.tsv` maps them to corpus images), for workflows that still read `bins/`. New work should use `corpus/images/<part>/NAME.bin` (`<part>` is the first 9 characters of the part number) instead.
+With read access to `ecu-corpus`, fetch the submodule at its pinned commit with `make corpus`; `make corpus-bump` moves it to the corpus head (commit the change yourself). The submodule URL is HTTPS; to use SSH, run `git config --global url.git@github.com:.insteadOf https://github.com/`. Without access, `corpus/` stays empty and `make test` skips the corpus images. `CORPUS` points the tests at another corpus checkout, and `XDFKIT_REQUIRE_CORPUS=1` (set in CI) makes a missing corpus a failure. See xdfkit's `docs/corpus.md` for the corpus specification.
 
 ---
 
@@ -143,10 +141,27 @@ With read access to `ecu-corpus`, fetch the submodule at its pinned commit with 
 
 ## Optional: Cross-compile for Windows (MinGW)
 
-`vars.mk` supports MinGW when `gcc -dumpmachine` contains `mingw`. Uncomment and set:
+Requires MinGW toolchain and GMP built for MinGW (included in `mpir/`).
 
-```make
-SYS := i686-w64-mingw32
+Debian:
+
+```shell
+sudo apt install gcc-mingw-w64 gcc-mingw-w64-i686
 ```
 
-Requires MinGW toolchain and GMP built for MinGW.
+Under cygwin:
+
+- **mingw64-i686-gcc-g++** and/or **mingw64-x86_64-gcc-g++**
+- **mingw64-i686-gmp** and/or **mingw64-x86_64-gmp**
+
+`vars.mk` supports MinGW when `gcc -dumpmachine` contains `mingw` (see `SYS` `GNUMakefile` variable).
+
+```shell
+make mingw
+```
+
+or
+
+```shell
+make mingw32
+```

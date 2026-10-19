@@ -1,31 +1,33 @@
 # included by GNUMakefile and inifile/makefile
 
-OBJ     =$(SRC:.c=.o) # replaces the .c from SRC with .o
-DEPS    =$(SRC:.c=.d) # replaces the .c from SRC with .d
+OBJ_DIR = obj/$(SYS)
+OBJ     = $(patsubst %.c, $(OBJ_DIR)/%.o, $(SRC))
+DEPS    = $(patsubst %.c, $(OBJ_DIR)/%.d, $(SRC))
 
-%.o: %.c         # combined w/ next line will compile recently changed .c files
+$(OBJ_DIR)/%.o: %.c
+	@mkdir -p $(dir $@)
 	$(ECHO) Compiling $(notdir $<) ...
 	$(DEBUG)$(CC) $(CFLAGS) -o $@ -c $<
 
-.PHONY : all     # .PHONY ignores files named all
-all: $(SUBDIRS) $(EXE)$ $(LIB)   # all is dependent on $(EXE) to be complete
+.PHONY : all
+all: $(SUBDIRS) $(EXE)$ $(LIB)
 
 .PHONY : $(SUBDIRS)
 $(SUBDIRS):
 	$(MAKE) -C $@ $(TARGET)
 
+# used by initfile/makefile
 $(LIB): $(OBJ)
 	$(ECHO) Archiving $@ ...
 	$(DEBUG)$(AR) $@ $(OBJ)
 	$(ECHO) Done
 
-$(EXE): $(OBJ)   # $(EXE) is dependent on all of the files in $(OBJ) to exist
+$(EXE): $(OBJ)
 	$(ECHO) Linking $@ ...
 	$(DEBUG)$(LD) $(OBJ) $(LDFLAGS) $(addprefix -l,$(LIBS)) -o $@
 	$(ECHO) Done
 
-.PHONY : clean   # .PHONY ignores files named clean
-
+.PHONY : clean
 clean:	TARGET := clean
 clean:	$(SUBDIRS)
 	$(ECHO) Deleting $(OBJ) $(DEPS) $(LIB) $(EXE) ...

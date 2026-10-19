@@ -23,4 +23,4 @@ runs:
       run: |
         git config --global url."https://x-access-token:${TOKEN}@github.com/nyetlabs/ecu-corpus".insteadOf https://github.com/nyetlabs/ecu-corpus
         git submodule update --init --checkout --depth 1 corpus
-        echo XDFKIT_REQUIRE_CORPUS=1 >>"$GITHUB_ENV"
+        echo REQUIRE_CORPUS=1 >>"$GITHUB_ENV"

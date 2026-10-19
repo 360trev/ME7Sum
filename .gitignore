@@ -1,13 +1,9 @@
-/.cursor
+/.cursor/
 .*.swp
-*.d
-*.o
-*.obj
-*.a
+obj/
+/me7sum.exe
+/*.obj
 *.zip
-me7sum
-me7sum.exe
 .compiler_flags
 .clangd
-/bins/
 /testdata/reports/

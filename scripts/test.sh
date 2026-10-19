@@ -3,12 +3,12 @@
 # modified images in testdata/modified. Reports go to testdata/reports/.
 
 cd "$(dirname "$0")/.."
-corpus=${XDFKIT_CORPUS:-corpus}
+corpus=${CORPUS:-ecu-corpus}
 out=testdata/reports
 log=$out/err.log
 
 mkdir -p "$out"
-trap 'rm -f "$log"' EXIT
+trap 'rm -f "$log"' E
 : > "$log"
 
 check() {
@@ -27,8 +27,8 @@ if [ -f "$corpus/corpus.tsv" ]; then
     base=$(printf '%.9s' "$part")
     check "$corpus/images/$base/$name.bin" "$name"
   done
-elif [ "$XDFKIT_REQUIRE_CORPUS" = 1 ]; then
-  echo "no corpus at $corpus and XDFKIT_REQUIRE_CORPUS=1 (see BUILD.md)" >&2
+elif [ "$REQUIRE_CORPUS" = 1 ]; then
+  echo "no corpus at $corpus and REQUIRE_CORPUS=1 (see BUILD.md)" >&2
   exit 1
 else
   echo "no corpus at $corpus, skipping corpus images (see BUILD.md)" >&2

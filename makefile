@@ -11,4 +11,4 @@ $(TARGET):$(SOURCES)
 	cl /EHsc /Fe$@ $(CFLAGS) /Tc $(SOURCES) $(LIBRARIES)
 
 clean:
-	del $(TARGET) *.obj
+	del $(TARGET) *.obj 2>nul

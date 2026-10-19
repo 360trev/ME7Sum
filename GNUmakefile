@@ -1,6 +1,6 @@
 include vars.mk
 
-EXE     =me7sum$(EXE_EXT)
+EXE     =$(OBJ_DIR)/me7sum$(EXE_EXT)
 LIBS    =ini
 SUBDIRS =inifile
 
@@ -12,28 +12,35 @@ endif
 include makefile.common
 
 .PHONY: test
-test:
+test: ecu-corpus/corpus.tsv
 	scripts/test.sh
 
 # corpus: fetch the private ecu-corpus submodule at its pinned commit (needs access)
 # corpus-bump: move it to the ecu-corpus head (commit it yourself)
 .PHONY: corpus corpus-bump
-corpus:
-	git submodule update --init --checkout --depth 1 corpus
+corpus ecu-corpus/corpus.tsv:
+	git submodule update --init --checkout --depth 1 ecu-corpus
 
 corpus-bump:
-	git submodule update --init --checkout --remote --depth 1 corpus
-	@git -C corpus log -1 --format='corpus now at %h %s'
-	@git status --short corpus
+	git submodule update --init --checkout --remote --depth 1 ecu-corpus
+	@git -C ecu-corpus log -1 --format='corpus now at %h %s'
+	@git status --short ecu-corpus
 
-# bins: temporary, slated for removal; symlinks the old bins/ names into corpus/ and testdata/
-.PHONY: bins
-bins:
-	scripts/bins.sh
-
-win: force
-	./build.cmd clean
+.PHONY: win win-clean mingw32 mingw
+# Native Windows build with nmake
+# Always clean first, we don't have dependencies in nmake
+# We can't use "./build.cmd clean" because of odd vcvarsall.bat behavior
+win:
+	$(RM) me7sum.exe *.obj
 	./build.cmd
+
+# Legacy MinGW 32-bit
+mingw32:
+	SYS=i686-w64-mingw32 make
+
+# MinGW 64-bit
+mingw:
+	SYS=x86_64-w64-mingw32 make
 
 INIS=sample.ini # testdata/broken/ferrari360.ini testdata/modified/8D0907551M.ini
 .PHONY: zip
