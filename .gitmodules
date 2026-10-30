@@ -1,0 +1,5 @@
+[submodule "corpus"]
+	path = ecu-corpus
+	url = https://github.com/nyetlabs/ecu-corpus.git
+	shallow = true
+	update = none

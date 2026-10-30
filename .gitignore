@@ -1,5 +1,13 @@
-*.o
-*.obj
-*.a
-*.exe
-me7sum
+/.cursor/
+.*.swp
+.compiler_flags
+.clangd
+/testdata/reports/
+
+# unix build artifacts
+/build/
+
+# windows build artifacts
+/*.obj
+/me7sum.exe
+*.zip

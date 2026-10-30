@@ -1,0 +1,48 @@
+name: Unix Build
+
+on:
+  push:
+    branches: [ '**' ]
+  pull_request:
+    branches: [ '**' ]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        os: [ 'ubuntu', 'macos']
+    runs-on: ${{ matrix.os }}-latest
+    env:
+      HAS_CORPUS: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+    steps:
+    - name: Install MinGW on Ubuntu (Linux)
+      if: matrix.os == 'ubuntu'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y mingw-w64 gcc-mingw-w64-i686
+    - name: Install MinGW on macOS
+      if: matrix.os == 'macos'
+      run: brew install mingw-w64
+    - uses: actions/checkout@v7
+    - if: env.HAS_CORPUS == 'true'
+      uses: ./.github/actions/fetch-corpus
+      with:
+        client-id: ${{ vars.CORPUS_APP_CLIENT_ID }}
+        private-key: ${{ secrets.CORPUS_APP_KEY }}
+    - name: make
+      run: make all mingw mingw32
+    - name: make test
+      run: make test
+    - name: package
+      run: make package
+    - uses: rlespinasse/github-slug-action@v5
+      id: slug
+      with:
+        short-length: 6
+    - uses: actions/upload-artifact@v7
+      with:
+        name: me7sum-${{ steps.slug.outputs.GITHUB_SHA_SHORT }}-${{ matrix.os }}
+        path: build/me7sum-*

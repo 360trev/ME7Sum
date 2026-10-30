@@ -1,0 +1,33 @@
+name: Windows Build
+
+on:
+  push:
+    branches: [ '**' ]
+  pull_request:
+    branches: [ '**' ]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+    - uses: actions/checkout@v7
+    - name: build
+      shell: cmd
+      run: build.cmd
+    - name: zip
+      shell: pwsh
+      run: |
+        New-Item -ItemType Directory -Force -Path build | Out-Null
+        $version = (git describe --tags --abbrev=4 --dirty --always).Trim()
+        7z a -tzip "build/me7sum-$version-win.zip" me7sum.exe ME7Check.exe README.md sample.ini
+    - uses: rlespinasse/github-slug-action@v5
+      id: slug
+      with:
+        short-length: 6
+    - uses: actions/upload-artifact@v7
+      with:
+        name: me7sum-${{ steps.slug.outputs.GITHUB_SHA_SHORT }}-win
+        path: build/me7sum-*

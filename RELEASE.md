@@ -1,0 +1,78 @@
+# Release Process
+
+This document describes the GitHub Actions workflows and how releases are published.
+
+## GitHub Workflows
+
+Two workflows run on every push/PR to **any branch**; on tag push, a single workflow builds and creates the release; a scheduled workflow keeps the corpus submodule current:
+
+### Triggers
+
+- **push** to any branch — builds run, artifacts uploaded to the Actions run (not to a release)
+- **pull_request** to any branch — same as push
+- **push** tags `v*` — `release.yml` builds on ubuntu/macos/windows, generates changelog, creates release with all artifacts
+
+### Tag Rules
+
+- **v1.1.1** (no suffix) → full release. Changelog: commits since last full release (RCs ignored).
+- **v1.1.1-rc1** (contains `-rc`) → prerelease. Changelog: commits since last full or RC release.
+
+### Workflows
+
+| Workflow | Runners | Output |
+|----------|---------|--------|
+| `release.yml` | ubuntu, macos, windows | On tag push: `make package` on ubuntu and macos, `build.cmd` plus a zip on windows, git-cliff notes, release assets are those archives |
+| `windows-build.yml` | `windows-latest` | Push/PR: `build.cmd`, then `build/me7sum-<version>.zip` |
+| `unix-build.yml` | `ubuntu-latest`, `macos-latest` | Push/PR: `make package` → `build/me7sum-<os>-<version>.tar.gz` |
+| `corpus-bump.yml` | `ubuntu-latest` | Weekly or by hand: moves the `ecu-corpus` submodule to its head and opens a pull request |
+
+`unix-build.yml` and `release.yml` fetch the private `ecu-corpus` submodule with a short-lived token from the `nyetlabs-corpus-reader` GitHub App (organization variable `CORPUS_APP_CLIENT_ID` and secret `CORPUS_APP_KEY`) and run `make test` with `REQUIRE_CORPUS=1`. Pull requests from forks get no secrets, so they skip the corpus images. `corpus-bump.yml` needs "Allow GitHub Actions to create and approve pull requests" in the repository's Actions settings; its pull requests don't trigger other workflows, so run the tests on the bump branch by hand.
+
+On push/PR, artifacts are uploaded to the Actions run with short SHA in the name. On tag push, `release.yml` does builds and release creation in one run (no separate release trigger needed).
+
+Artifacts typically appear 5–10 minutes after pushing the tag. Refresh the release page to see them.
+
+---
+
+## Release Notes with git-cliff
+
+We use [git-cliff](https://git-cliff.org/) to generate release notes from the commit history. Configuration is in `cliff.toml`.
+
+- **Conventional commits**: Commits are grouped by type (Features, Bug Fixes, Documentation, etc.); see `commit_parsers` in `cliff.toml`.
+- **Tag pattern**: Stable tags `vX.Y.Z` and RC tags `vX.Y.Z-rcN` are matched.
+- **CI**: On tag push, `release.yml` runs git-cliff and creates the release. Full releases use `--ignore-tags` for RC tags so the changelog covers commits since the last full release; RC releases include RCs so the changelog covers commits since the last full or RC release.
+
+Generate changelog locally for the next release (from last tag to HEAD):
+
+```bash
+git cliff
+```
+
+For the latest tag only (same as CI):
+
+```bash
+git cliff --latest --strip header
+```
+
+For a specific range (e.g. v1.1.3..HEAD):
+
+```bash
+git cliff v1.1.3..HEAD
+```
+
+---
+
+## Creating a Release
+
+Releases are created automatically when you push a tag:
+
+1. Create and push a tag (e.g. `v1.1.4` for full release, `v1.1.4-rc1` for prerelease)
+2. Wait 5–10 minutes for `release.yml` to build and create the release
+3. Refresh the release page to verify the archives and changelog are present
+
+Example:
+
+```bash
+git tag v1.1.4
+git push origin v1.1.4
+```
